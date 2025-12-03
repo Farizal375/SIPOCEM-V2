@@ -1,13 +1,29 @@
 "use client";
 
+import Link from "next/link";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { ArrowLeft, History, Trash2, Edit } from "lucide-react";
+import { toast } from "sonner";
+
+// Import Dialogs
+import { IbuDialog } from "@/components/kader/ibu-dialog"; // Untuk Edit Profil Utama
+import { PemeriksaanIbuDialog } from "@/components/kader/pemeriksaan-ibu-dialog"; // Untuk CRUD Bulanan
 
 const dummyChartData = [
   { bulan: 'Bulan 1', bb: 50 },
@@ -18,169 +34,166 @@ const dummyChartData = [
 ];
 
 export default function DetailIbuPage({ params }: { params: { id: string } }) {
+  
+  const handleDelete = () => {
+    toast.success("Data berhasil dihapus");
+  };
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-         <h1 className="text-2xl font-bold text-gray-800">Detail Ibu Hamil</h1>
-         <span className="bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full">Aktif</span>
+      {/* Header & Navigasi */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div className="space-y-1">
+            <Link href="/kader/data-ibu" className="text-sm text-gray-500 hover:text-[#1abc9c] flex items-center gap-1 w-fit mb-2">
+                <ArrowLeft className="w-4 h-4" /> Kembali ke Daftar
+            </Link>
+            <h1 className="text-2xl font-bold text-gray-800">Detail Ibu Hamil</h1>
+        </div>
+        <div className="flex gap-2">
+            {/* Edit Profil Utama */}
+            <IbuDialog mode="edit" data={{ nama: "Siti Aminah", nik: "3201234567890001" }} />
+            
+            {/* Hapus Profil Utama */}
+            <AlertDialog>
+                <AlertDialogTrigger asChild>
+                    <Button variant="destructive" className="bg-red-50 text-red-600 border border-red-200 hover:bg-red-100">
+                        <Trash2 className="w-4 h-4 mr-2" /> Hapus Data Ibu
+                    </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Hapus Data Ibu Hamil?</AlertDialogTitle>
+                        <AlertDialogDescription>Tindakan ini akan menghapus seluruh data profil dan riwayat pemeriksaan secara permanen.</AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Batal</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => toast.success("Data Ibu dihapus")}>Hapus</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+        </div>
       </div>
 
-      <Tabs defaultValue="profil" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 md:w-[400px]">
-          <TabsTrigger value="profil">Profil Identitas</TabsTrigger>
-          <TabsTrigger value="anc">Pemeriksaan (ANC)</TabsTrigger>
+      <Tabs defaultValue="anc" className="w-full">
+        <TabsList className="grid w-full grid-cols-2 lg:w-[400px] bg-gray-100">
+          <TabsTrigger value="anc" className="data-[state=active]:bg-[#1abc9c] data-[state=active]:text-white">Pemeriksaan (ANC)</TabsTrigger>
+          <TabsTrigger value="profil" className="data-[state=active]:bg-[#1abc9c] data-[state=active]:text-white">Profil Identitas</TabsTrigger>
         </TabsList>
 
-        {/* TAB 1: PROFIL (READ ONLY) */}
+        {/* TAB 1: PEMERIKSAAN (ANC) */}
+        <TabsContent value="anc" className="mt-6 space-y-6">
+          
+          {/* Header Bagian Pemeriksaan */}
+          <div className="flex justify-between items-center">
+             <h3 className="text-lg font-semibold text-gray-700 flex items-center gap-2">
+                <History className="w-5 h-5" /> Riwayat Pemeriksaan
+             </h3>
+             {/* Tombol Tambah Data Bulanan */}
+             <PemeriksaanIbuDialog mode="create" />
+          </div>
+
+          <div className="grid lg:grid-cols-3 gap-6">
+             {/* Tabel Riwayat */}
+             <Card className="lg:col-span-2 shadow-sm border-t-4 border-t-[#1abc9c]">
+                <CardContent className="p-0">
+                    <Table>
+                        <TableHeader className="bg-gray-50">
+                            <TableRow>
+                                <TableHead>Tanggal</TableHead>
+                                <TableHead>Usia (Mgg)</TableHead>
+                                <TableHead>BB (Kg)</TableHead>
+                                <TableHead>Tensi</TableHead>
+                                <TableHead>TFU</TableHead>
+                                <TableHead className="text-center">Aksi</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            <TableRow>
+                                <TableCell>12/10/2025</TableCell>
+                                <TableCell>20</TableCell>
+                                <TableCell>56.0</TableCell>
+                                <TableCell>110/80</TableCell>
+                                <TableCell>24cm</TableCell>
+                                <TableCell className="text-center">
+                                    <div className="flex justify-center gap-1">
+                                        <PemeriksaanIbuDialog mode="edit" data={{ tanggal: "2025-10-12", usia_kandungan: 20, bb: 56, tensi: "110/80", tfu: 24 }} />
+                                        <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:bg-red-50"><Trash2 className="w-4 h-4" /></Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                                <AlertDialogHeader><AlertDialogTitle>Hapus data pemeriksaan ini?</AlertDialogTitle></AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                    <AlertDialogCancel>Batal</AlertDialogCancel>
+                                                    <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">Hapus</AlertDialogAction>
+                                                </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
+                                    </div>
+                                </TableCell>
+                            </TableRow>
+                            {/* Contoh Data Lain */}
+                            <TableRow>
+                                <TableCell>12/09/2025</TableCell>
+                                <TableCell>16</TableCell>
+                                <TableCell>54.5</TableCell>
+                                <TableCell>120/80</TableCell>
+                                <TableCell>18cm</TableCell>
+                                <TableCell className="text-center">
+                                    <div className="flex justify-center gap-1">
+                                        <PemeriksaanIbuDialog mode="edit" data={{ tanggal: "2025-09-12", usia_kandungan: 16, bb: 54.5, tensi: "120/80", tfu: 18 }} />
+                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:bg-red-50"><Trash2 className="w-4 h-4" /></Button>
+                                    </div>
+                                </TableCell>
+                            </TableRow>
+                        </TableBody>
+                    </Table>
+                </CardContent>
+             </Card>
+
+             {/* Grafik Ringkas */}
+             <Card className="shadow-sm">
+               <CardHeader>
+                 <CardTitle className="text-sm">Grafik Berat Badan</CardTitle>
+               </CardHeader>
+               <CardContent className="h-[300px] p-2">
+                 <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={dummyChartData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="bulan" fontSize={10} tickLine={false} axisLine={false} />
+                      <YAxis fontSize={10} tickLine={false} axisLine={false} domain={['dataMin - 1', 'dataMax + 1']} />
+                      <Tooltip />
+                      <Line type="monotone" dataKey="bb" stroke="#1abc9c" strokeWidth={3} dot={{r:4, fill:"#1abc9c"}} />
+                    </LineChart>
+                 </ResponsiveContainer>
+                 <p className="text-center text-xs text-gray-500 mt-4">Tren kenaikan berat badan ibu.</p>
+               </CardContent>
+             </Card>
+          </div>
+        </TabsContent>
+
+        {/* TAB 2: PROFIL (READ ONLY) */}
         <TabsContent value="profil" className="mt-6">
           <Card>
-            <CardHeader>
-              <CardTitle>Identitas Ibu (Read-Only)</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label>NIK</Label>
-                  <Input value="3201234567890001" readOnly className="bg-gray-50" />
+            <CardHeader><CardTitle>Identitas Lengkap</CardTitle></CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid md:grid-cols-2 gap-x-12 gap-y-6">
+                <div className="space-y-1 border-b pb-2">
+                  <Label className="text-gray-500 text-xs uppercase">NIK</Label>
+                  <p className="font-medium text-lg">3201234567890001</p>
                 </div>
-                <div className="space-y-2">
-                  <Label>Nama Lengkap</Label>
-                  <Input value="Siti Aminah" readOnly className="bg-gray-50" />
+                <div className="space-y-1 border-b pb-2">
+                  <Label className="text-gray-500 text-xs uppercase">Nama Lengkap</Label>
+                  <p className="font-medium text-lg">Siti Aminah</p>
                 </div>
-                <div className="space-y-2">
-                  <Label>Tempat, Tanggal Lahir</Label>
-                  <Input value="Tasikmalaya, 12 Januari 1995" readOnly className="bg-gray-50" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Golongan Darah</Label>
-                  <Input value="O" readOnly className="bg-gray-50" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Nama Suami</Label>
-                  <Input value="Budi Santoso" readOnly className="bg-gray-50" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Alamat Lengkap</Label>
-                  <Input value="Jl. Cempaka No. 12, Mugarsari" readOnly className="bg-gray-50" />
+                {/* ... Sisa data profil lainnya ... */}
+                <div className="space-y-1 border-b pb-2">
+                  <Label className="text-gray-500 text-xs uppercase">Alamat</Label>
+                  <p className="font-medium text-lg">Jl. Cempaka No. 12, Mugarsari</p>
                 </div>
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
-
-        {/* TAB 2: ANC (INPUT & GRAFIK) */}
-        <TabsContent value="anc" className="mt-6 space-y-6">
-          
-          {/* Form Input Kunjungan */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Input Data Kunjungan Baru</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <form className="space-y-6">
-                <div className="grid md:grid-cols-4 gap-4">
-                   <div className="space-y-2">
-                      <Label>Tanggal Periksa</Label>
-                      <Input type="date" />
-                   </div>
-                   <div className="space-y-2">
-                      <Label>Usia Kehamilan (Minggu)</Label>
-                      <Input type="number" placeholder="Contoh: 20" />
-                   </div>
-                   <div className="space-y-2">
-                      <Label>Berat Badan (Kg)</Label>
-                      <Input type="number" step="0.1" />
-                   </div>
-                   <div className="space-y-2">
-                      <Label>Tinggi Badan (cm)</Label>
-                      <Input type="number" />
-                   </div>
-                   <div className="space-y-2">
-                      <Label>LiLA (cm)</Label>
-                      <Input type="number" step="0.1" />
-                   </div>
-                   <div className="space-y-2">
-                      <Label>Tekanan Darah (mmHg)</Label>
-                      <Input placeholder="120/80" />
-                   </div>
-                   <div className="space-y-2">
-                      <Label>Tinggi Fundus (cm)</Label>
-                      <Input type="number" />
-                   </div>
-                   <div className="space-y-2">
-                      <Label>DJJ (x/menit)</Label>
-                      <Input type="number" />
-                   </div>
-                </div>
-
-                <Separator />
-
-                <div className="grid md:grid-cols-2 gap-8">
-                   {/* Imunisasi Tetanus */}
-                   <div className="space-y-3">
-                      <Label className="text-base font-semibold">Status Imunisasi Tetanus</Label>
-                      <div className="flex flex-wrap gap-4">
-                         {['T1', 'T2', 'T3', 'T4', 'T5'].map((t) => (
-                           <div key={t} className="flex items-center space-x-2">
-                             <Checkbox id={t} />
-                             <Label htmlFor={t}>{t}</Label>
-                           </div>
-                         ))}
-                      </div>
-                   </div>
-
-                   {/* Suplemen */}
-                   <div className="space-y-3">
-                      <Label className="text-base font-semibold">Pemberian Suplemen</Label>
-                      <div className="flex flex-col gap-2">
-                         <div className="flex items-center space-x-2">
-                             <Checkbox id="ttd" />
-                             <Label htmlFor="ttd">Tablet Tambah Darah (TTD)</Label>
-                         </div>
-                         <div className="flex items-center space-x-2">
-                             <Checkbox id="mms" />
-                             <Label htmlFor="mms">Multiple Micronutrient (MMS)</Label>
-                         </div>
-                      </div>
-                   </div>
-                </div>
-
-                <Button className="w-full bg-[#1abc9c] hover:bg-[#16a085]">Simpan Data Pemeriksaan</Button>
-              </form>
-            </CardContent>
-          </Card>
-
-          {/* Visualisasi Data */}
-          <div className="grid md:grid-cols-2 gap-6">
-             {/* Grafik BB */}
-             <Card>
-               <CardHeader>
-                 <CardTitle className="text-sm">Grafik Peningkatan Berat Badan</CardTitle>
-               </CardHeader>
-               <CardContent className="h-[250px]">
-                 <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={dummyChartData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="bulan" fontSize={12} />
-                      <YAxis fontSize={12} />
-                      <Tooltip />
-                      <Line type="monotone" dataKey="bb" stroke="#1abc9c" strokeWidth={2} />
-                    </LineChart>
-                 </ResponsiveContainer>
-               </CardContent>
-             </Card>
-
-             {/* Grafik Evaluasi Kehamilan (Dummy Placeholder) */}
-             <Card>
-               <CardHeader>
-                 <CardTitle className="text-sm">Grafik Evaluasi (TFU & DJJ)</CardTitle>
-               </CardHeader>
-               <CardContent className="h-[250px] flex items-center justify-center bg-gray-50 text-gray-400 text-sm">
-                  Grafik TFU & DJJ akan muncul setelah data mencukupi.
-               </CardContent>
-             </Card>
-          </div>
-
         </TabsContent>
       </Tabs>
     </div>

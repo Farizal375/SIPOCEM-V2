@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useSignUp } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-// PERBAIKAN 1: Import SubmitHandler
 import { useForm, SubmitHandler } from "react-hook-form"; 
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -26,14 +25,21 @@ const registerSchema = z.object({
   // STEP 1: Akun & Dasar
   nama_lengkap: z.string().min(1, "Nama wajib diisi"),
   email: z.string().email("Email tidak valid"),
-  password: z.string().min(8, "Password minimal 8 karakter"),
-  no_telepon: z.string().min(10, "Nomor telepon tidak valid"),
+  password: z.string().min(6, "Password minimal 6 karakter"),
+  no_telepon: z.string()
+    .regex(/^\d+$/, "Hanya boleh angka")
+    .min(10, "Nomor telepon tidak valid (min 10 digit)"),
   alamat: z.string().min(1, "Alamat wajib diisi"),
 
   // STEP 2: Identitas Ibu (User)
-  nik_ibu: z.string().min(16, "NIK harus 16 digit"),
+  nik_ibu: z.string()
+    .regex(/^\d+$/, "NIK harus berupa angka")
+    .length(16, "NIK harus tepat 16 digit"),
   jenis_kelamin_ibu: z.string().min(1, "Pilih jenis kelamin"),
-  no_jkn_ibu: z.string().optional(),
+  no_jkn_ibu: z.string()
+    .regex(/^\d+$/, "JKN harus berupa angka")
+    .length(13, "JKN harus tepat 13 digit")
+    .optional().or(z.literal("")),
   faskes_ibu: z.string().optional(),
   pendidikan_ibu: z.string().optional(),
   pekerjaan_ibu: z.string().optional(),
@@ -41,15 +47,19 @@ const registerSchema = z.object({
   tempat_lahir_ibu: z.string().min(1, "Tempat lahir wajib diisi"),
   tanggal_lahir_ibu: z.string().min(1, "Tanggal lahir wajib diisi"),
   asuransi_ibu: z.string().optional(),
-  // PERBAIKAN 2: Pastikan tipe data konsisten (string)
   jumlah_anak: z.string().default("0"), 
 
   // STEP 3: Identitas Suami
   nama_suami: z.string().min(1, "Nama suami wajib diisi"),
-  nik_suami: z.string().min(16, "NIK harus 16 digit"),
+  nik_suami: z.string()
+    .regex(/^\d+$/, "NIK harus berupa angka")
+    .length(16, "NIK harus tepat 16 digit"),
   jenis_kelamin_suami: z.string().default("Laki-laki"),
   alamat_suami: z.string().optional(),
-  no_jkn_suami: z.string().optional(),
+  no_jkn_suami: z.string()
+    .regex(/^\d+$/, "JKN harus berupa angka")
+    .length(13, "JKN harus tepat 13 digit")
+    .optional().or(z.literal("")),
   faskes_suami: z.string().optional(),
   pendidikan_suami: z.string().optional(),
   pekerjaan_suami: z.string().optional(),
@@ -59,7 +69,7 @@ const registerSchema = z.object({
   asuransi_suami: z.string().optional(),
   no_telepon_suami: z.string().optional(),
 
-  // STEP 4: Identitas Anak (DYNAMIC ARRAY)
+  // STEP 4: Identitas Anak
   data_anak: z.array(z.object({
     nama: z.string().optional(),
     nik: z.string().optional(),
@@ -90,9 +100,6 @@ export function MultiStepRegister() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Hook Form
-  // PERBAIKAN 3: Hapus generic <FormData> di useForm untuk membiarkan TypeScript meng-infer sendiri dari resolver
-  // Ini trik paling ampuh untuk menghilangkan error "Type incompatible"
   const { register, handleSubmit, trigger, formState: { errors }, watch, setValue } = useForm({
     resolver: zodResolver(registerSchema),
     mode: "onChange",
@@ -111,8 +118,8 @@ export function MultiStepRegister() {
     let fieldsToValidate: any[] = [];
     
     if (step === 1) fieldsToValidate = ["nama_lengkap", "email", "password", "no_telepon", "alamat"];
-    if (step === 2) fieldsToValidate = ["nik_ibu", "tempat_lahir_ibu", "tanggal_lahir_ibu", "jumlah_anak", "jenis_kelamin_ibu"];
-    if (step === 3) fieldsToValidate = ["nama_suami", "nik_suami"];
+    if (step === 2) fieldsToValidate = ["nik_ibu", "no_jkn_ibu", "tempat_lahir_ibu", "tanggal_lahir_ibu", "jumlah_anak", "jenis_kelamin_ibu"];
+    if (step === 3) fieldsToValidate = ["nama_suami", "nik_suami", "no_jkn_suami"];
     
     const isValid = await trigger(fieldsToValidate);
     if (isValid) setStep((prev) => prev + 1);
@@ -120,7 +127,6 @@ export function MultiStepRegister() {
 
   const prevStep = () => setStep((prev) => prev - 1);
 
-  // PERBAIKAN 4: Gunakan SubmitHandler<FormData> untuk typing fungsi onSubmit
   const onSubmit: SubmitHandler<FormData> = async (data) => {
     if (!isLoaded) return;
     setLoading(true);
@@ -135,7 +141,7 @@ export function MultiStepRegister() {
         const userId = clerkResult.createdUserId; 
 
         if (userId) {
-             // 1. Insert Profil Ibu
+             // 1. Insert Profil Ibu dengan status Menunggu Validasi
              const { error: profileError } = await supabase.from('profiles').insert({
                 id: userId,
                 nama_lengkap: data.nama_lengkap,
@@ -151,7 +157,9 @@ export function MultiStepRegister() {
                 gol_darah: data.gol_darah_ibu,
                 tempat_lahir: data.tempat_lahir_ibu,
                 tanggal_lahir: data.tanggal_lahir_ibu,
-                asuransi: data.asuransi_ibu
+                asuransi: data.asuransi_ibu,
+                role: 'user',
+                status: 'Menunggu Validasi' 
              });
 
              if (profileError) throw new Error("Gagal simpan profil: " + profileError.message);
@@ -176,7 +184,6 @@ export function MultiStepRegister() {
 
              // 3. Insert Anak
              const countAnak = parseInt(data.jumlah_anak || "0");
-             // Validasi aman untuk array anak
              if (countAnak > 0 && data.data_anak && Array.isArray(data.data_anak) && data.data_anak.length > 0) {
                 const anakToInsert = data.data_anak.slice(0, countAnak).map((anak: any) => ({
                     profile_id: userId,
@@ -220,7 +227,7 @@ export function MultiStepRegister() {
     }
   };
 
-  const InputField = ({ label, id, type = "text", placeholder, registerRef }: any) => (
+  const InputField = ({ label, id, type = "text", placeholder, registerRef, errorMessage }: any) => (
     <div className="space-y-2">
         <Label htmlFor={id} className="font-semibold text-gray-700">{label}</Label>
         <Input 
@@ -229,6 +236,7 @@ export function MultiStepRegister() {
             placeholder={placeholder} 
             className="h-12 border-gray-400 rounded-md focus:border-[#1abc9c] focus:ring-[#1abc9c]" 
         />
+        {errorMessage && <p className="text-red-500 text-xs">{errorMessage}</p>}
     </div>
   );
 
@@ -312,7 +320,7 @@ export function MultiStepRegister() {
                                 {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                             </button>
                         </div>
-                        <p className="text-xs text-gray-500">Password harus memiliki minimal 8 karakter</p>
+                        <p className="text-xs text-gray-500">Password minimal 6 karakter</p>
                         {errors.password && <p className="text-red-500 text-xs">{errors.password.message}</p>}
                     </div>
 
@@ -340,7 +348,7 @@ export function MultiStepRegister() {
             {step === 2 && (
                 <>
                     <h2 className="text-xl font-bold text-black text-center mb-6">IDENTITAS IBU</h2>
-                    <InputField id="nik_ibu" label="NIK" placeholder="" />
+                    <InputField id="nik_ibu" label="NIK (16 Digit)" placeholder="16 digit angka" errorMessage={errors.nik_ibu?.message} />
                     
                     <SelectField 
                         label="Jenis Kelamin" 
@@ -350,13 +358,13 @@ export function MultiStepRegister() {
                         options={[{value: "Perempuan", label: "Perempuan"}, {value: "Laki-laki", label: "Laki-laki"}]}
                     />
 
-                    <InputField id="no_jkn_ibu" label="No. JKN" placeholder="" />
+                    <InputField id="no_jkn_ibu" label="No. JKN (13 Digit)" placeholder="13 digit angka" errorMessage={errors.no_jkn_ibu?.message} />
                     <InputField id="faskes_ibu" label="Faskes" placeholder="" />
                     <InputField id="pendidikan_ibu" label="Pendidikan Terakhir" placeholder="" />
                     <InputField id="pekerjaan_ibu" label="Pekerjaan" placeholder="" />
                     <InputField id="gol_darah_ibu" label="Gol. Darah" placeholder="" />
-                    <InputField id="tempat_lahir_ibu" label="Tempat Lahir" placeholder="" />
-                    <InputField id="tanggal_lahir_ibu" label="Tanggal Lahir" type="date" />
+                    <InputField id="tempat_lahir_ibu" label="Tempat Lahir" placeholder="" errorMessage={errors.tempat_lahir_ibu?.message} />
+                    <InputField id="tanggal_lahir_ibu" label="Tanggal Lahir" type="date" errorMessage={errors.tanggal_lahir_ibu?.message} />
                     <InputField id="asuransi_ibu" label="Asuransi" placeholder="" />
                     
                     <div className="space-y-2 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
@@ -378,8 +386,8 @@ export function MultiStepRegister() {
             {step === 3 && (
                 <>
                     <h2 className="text-xl font-bold text-black text-center mb-6">IDENTITAS SUAMI</h2>
-                    <InputField id="nama_suami" label="Nama Lengkap" placeholder="" />
-                    <InputField id="nik_suami" label="NIK" placeholder="" />
+                    <InputField id="nama_suami" label="Nama Lengkap" placeholder="" errorMessage={errors.nama_suami?.message} />
+                    <InputField id="nik_suami" label="NIK (16 Digit)" placeholder="" errorMessage={errors.nik_suami?.message} />
                     
                     <SelectField 
                         label="Jenis Kelamin" 
@@ -390,7 +398,7 @@ export function MultiStepRegister() {
                     />
 
                     <InputField id="alamat_suami" label="Alamat" placeholder="Kosongkan jika sama dengan Ibu" />
-                    <InputField id="no_jkn_suami" label="No. JKN" />
+                    <InputField id="no_jkn_suami" label="No. JKN (13 Digit)" errorMessage={errors.no_jkn_suami?.message} />
                     <InputField id="faskes_suami" label="Faskes" />
                     <InputField id="pendidikan_suami" label="Pendidikan Terakhir" />
                     <InputField id="pekerjaan_suami" label="Pekerjaan" />

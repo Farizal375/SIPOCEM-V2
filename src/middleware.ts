@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 // 1. Definisi Rute
 const isAuthRoute = createRouteMatcher(["/sign-in(.*)", "/sign-up(.*)"]);
 const isAdminRoute = createRouteMatcher(["/admin(.*)"]);
-const isKaderRoute = createRouteMatcher(["/kader(.*)"]); // Tambahkan rute Kader
+const isKaderRoute = createRouteMatcher(["/kader(.*)"]);
 const isUserRoute = createRouteMatcher(["/user(.*)"]);
 const isPublicRoute = createRouteMatcher([
   "/", 
@@ -19,7 +19,6 @@ export default clerkMiddleware(async (auth, req) => {
   // --- SKENARIO A: USER SUDAH LOGIN ---
   if (userId) {
     // Ambil role dari metadata. Default ke 'user' jika tidak ada.
-    // Pastikan Anda sudah setting custom claims di Clerk Dashboard.
     const role = (sessionClaims?.metadata as any)?.role || "user";
 
     // 1. Redirect Otomatis dari Halaman Public/Auth ke Dashboard masing-masing
@@ -34,36 +33,31 @@ export default clerkMiddleware(async (auth, req) => {
       }
     }
 
-    // 2. Proteksi Halaman ADMIN
-    //    Jika mencoba akses /admin/* tapi bukan admin -> lempar ke dashboard masing-masing
+    // 2. Proteksi Akses Lintas Role (Role-Based Access Control)
+    
+    // Jika bukan ADMIN tapi mencoba akses halaman /admin
     if (isAdminRoute(req) && role !== "admin") {
       const target = role === "kader" ? "/kader/dashboard" : "/user/dashboard";
       return NextResponse.redirect(new URL(target, req.url));
     }
 
-    // 3. Proteksi Halaman KADER
-    //    Jika mencoba akses /kader/* tapi bukan kader -> lempar ke dashboard masing-masing
+    // Jika bukan KADER tapi mencoba akses halaman /kader
     if (isKaderRoute(req) && role !== "kader") {
-       // Admin mungkin boleh akses kader? Jika tidak, gunakan logika ketat ini:
+       // Admin boleh akses kader? Jika tidak, lempar balik.
+       // Jika Admin boleh, tambahkan: if (role !== "kader" && role !== "admin")
        const target = role === "admin" ? "/admin/dashboard" : "/user/dashboard";
        return NextResponse.redirect(new URL(target, req.url));
     }
 
-    // 4. Proteksi Halaman USER
-    //    Jika mencoba akses /user/* tapi bukan user
+    // Jika bukan USER tapi mencoba akses halaman /user
     if (isUserRoute(req) && role !== "user") {
-       // Opsional: Biasanya Admin/Kader boleh lihat dashboard user, tapi sesuai request "User tidak bisa login ke kader... begitupun sebaliknya", kita isolasi.
        const target = role === "admin" ? "/admin/dashboard" : "/kader/dashboard";
        return NextResponse.redirect(new URL(target, req.url));
     }
   }
 
   // --- SKENARIO B: USER BELUM LOGIN ---
-  // Jika mencoba akses halaman private (selain public route), lempar ke Login
-  // HAPUSKAN 2FA DI SINI:
-  // Clerk biasanya menangani 2FA secara otomatis jika diaktifkan di dashboard.
-  // Namun, middleware ini sendiri tidak secara eksplisit memicu atau memblokir 2FA.
-  // Jika Anda ingin memastikan redirect langsung tanpa hambatan tambahan dari middleware:
+  // Jika mencoba akses halaman private, lempar ke Login
   if (!userId && !isPublicRoute(req)) {
     return (await auth()).redirectToSignIn();
   }
