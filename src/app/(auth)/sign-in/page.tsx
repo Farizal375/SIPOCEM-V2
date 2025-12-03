@@ -4,8 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
-import { LoginForm } from "@/app/(auth)/layout";
-import { ForgotPasswordForm } from "@/app/(auth)/forgot-password/forgot-password-form";
+import { LoginForm } from "@/components/auth/login-form";
+import { ForgotPasswordForm } from "@/components/auth/forgot-password-form";
 import { Sprout } from "lucide-react";
 
 export default function SignInPage() {
