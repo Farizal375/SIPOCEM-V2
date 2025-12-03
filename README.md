@@ -184,3 +184,249 @@ To implement the generated documentation from CodeGuide:
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
+```
+SIPOCEM-V2
+├─ .devcontainer
+│  ├─ devcontainer.json
+│  ├─ Dockerfile
+│  └─ init-firewall.sh
+├─ .prettierrc
+├─ CLAUDE.md
+├─ codeguide-backdrop.svg
+├─ components.json
+├─ CONTRIBUTING.md
+├─ eslint.config.mjs
+├─ LICENSE
+├─ next.config.ts
+├─ package-lock.json
+├─ package.json
+├─ postcss.config.mjs
+├─ public
+│  ├─ codeguide-logo.png
+│  ├─ file.svg
+│  ├─ globe.svg
+│  ├─ images
+│  │  └─ posyandu.jpg
+│  ├─ next.svg
+│  ├─ vercel.svg
+│  └─ window.svg
+├─ README.md
+├─ src
+│  ├─ app
+│  │  ├─ actions
+│  │  │  └─ admin-actions.ts
+│  │  ├─ admin
+│  │  │  ├─ dashboard
+│  │  │  │  └─ page.tsx
+│  │  │  ├─ layout.tsx
+│  │  │  ├─ manajemen-akun
+│  │  │  │  └─ page.tsx
+│  │  │  ├─ pengaturan
+│  │  │  │  └─ page.tsx
+│  │  │  └─ pusat-notifikasi
+│  │  │     └─ page.tsx
+│  │  ├─ favicon.ico
+│  │  ├─ globals.css
+│  │  ├─ layout.tsx
+│  │  ├─ page.tsx
+│  │  └─ sign-in
+│  │     └─ page.tsx
+│  ├─ components
+│  │  ├─ admin
+│  │  │  ├─ delete-user-button.tsx
+│  │  │  ├─ sidebar.tsx
+│  │  │  └─ user-dialog.tsx
+│  │  ├─ auth
+│  │  │  ├─ forgot-password-form.tsx
+│  │  │  ├─ login-form.tsx
+│  │  │  └─ multi-step-register.tsx
+│  │  ├─ chat.tsx
+│  │  ├─ landing
+│  │  │  └─ hero.tsx
+│  │  ├─ layout
+│  │  │  ├─ footer.tsx
+│  │  │  └─ navbar.tsx
+│  │  ├─ theme-provider.tsx
+│  │  ├─ theme-toggle.tsx
+│  │  └─ ui
+│  │     ├─ accordion.tsx
+│  │     ├─ alert-dialog.tsx
+│  │     ├─ alert.tsx
+│  │     ├─ aspect-ratio.tsx
+│  │     ├─ avatar.tsx
+│  │     ├─ badge.tsx
+│  │     ├─ breadcrumb.tsx
+│  │     ├─ button.tsx
+│  │     ├─ calendar.tsx
+│  │     ├─ card.tsx
+│  │     ├─ carousel.tsx
+│  │     ├─ chart.tsx
+│  │     ├─ checkbox.tsx
+│  │     ├─ collapsible.tsx
+│  │     ├─ command.tsx
+│  │     ├─ context-menu.tsx
+│  │     ├─ dialog.tsx
+│  │     ├─ drawer.tsx
+│  │     ├─ dropdown-menu.tsx
+│  │     ├─ form.tsx
+│  │     ├─ hover-card.tsx
+│  │     ├─ input-otp.tsx
+│  │     ├─ input.tsx
+│  │     ├─ label.tsx
+│  │     ├─ menubar.tsx
+│  │     ├─ navigation-menu.tsx
+│  │     ├─ pagination.tsx
+│  │     ├─ popover.tsx
+│  │     ├─ progress.tsx
+│  │     ├─ radio-group.tsx
+│  │     ├─ resizable.tsx
+│  │     ├─ scroll-area.tsx
+│  │     ├─ select.tsx
+│  │     ├─ separator.tsx
+│  │     ├─ sheet.tsx
+│  │     ├─ skeleton.tsx
+│  │     ├─ slider.tsx
+│  │     ├─ sonner.tsx
+│  │     ├─ switch.tsx
+│  │     ├─ table.tsx
+│  │     ├─ tabs.tsx
+│  │     ├─ textarea.tsx
+│  │     ├─ toggle-group.tsx
+│  │     ├─ toggle.tsx
+│  │     └─ tooltip.tsx
+│  ├─ lib
+│  │  ├─ supabase.ts
+│  │  ├─ user.ts
+│  │  └─ utils.ts
+│  └─ middleware.ts
+├─ supabase
+│  └─ migrations
+│     └─ 001_example_tables_with_rls.sql
+├─ SUPABASE_CLERK_SETUP.md
+└─ tsconfig.json
+
+```
+```
+SIPOCEM-V2
+├─ .devcontainer
+│  ├─ devcontainer.json
+│  ├─ Dockerfile
+│  └─ init-firewall.sh
+├─ .prettierrc
+├─ CLAUDE.md
+├─ codeguide-backdrop.svg
+├─ components.json
+├─ CONTRIBUTING.md
+├─ eslint.config.mjs
+├─ LICENSE
+├─ next.config.ts
+├─ package-lock.json
+├─ package.json
+├─ postcss.config.mjs
+├─ public
+│  ├─ codeguide-logo.png
+│  ├─ file.svg
+│  ├─ globe.svg
+│  ├─ images
+│  │  └─ posyandu.jpg
+│  ├─ next.svg
+│  ├─ vercel.svg
+│  └─ window.svg
+├─ README.md
+├─ src
+│  ├─ app
+│  │  ├─ (auth)
+│  │  │  ├─ forgot-password
+│  │  │  │  └─ forgot-password-form.tsx
+│  │  │  ├─ layout.tsx
+│  │  │  ├─ sign-in
+│  │  │  │  └─ page.tsx
+│  │  │  └─ sign-up
+│  │  │     └─ multi-step-register.tsx
+│  │  ├─ actions
+│  │  │  └─ admin-actions.ts
+│  │  ├─ admin
+│  │  │  ├─ dashboard
+│  │  │  │  └─ page.tsx
+│  │  │  ├─ layout.tsx
+│  │  │  ├─ manajemen-akun
+│  │  │  │  └─ page.tsx
+│  │  │  ├─ pengaturan
+│  │  │  │  └─ page.tsx
+│  │  │  └─ pusat-notifikasi
+│  │  │     └─ page.tsx
+│  │  ├─ favicon.ico
+│  │  ├─ globals.css
+│  │  ├─ layout.tsx
+│  │  └─ page.tsx
+│  ├─ components
+│  │  ├─ admin
+│  │  │  ├─ delete-user-button.tsx
+│  │  │  ├─ sidebar.tsx
+│  │  │  └─ user-dialog.tsx
+│  │  ├─ chat.tsx
+│  │  ├─ landing
+│  │  │  └─ hero.tsx
+│  │  ├─ layout
+│  │  │  ├─ footer.tsx
+│  │  │  └─ navbar.tsx
+│  │  ├─ theme-provider.tsx
+│  │  ├─ theme-toggle.tsx
+│  │  └─ ui
+│  │     ├─ accordion.tsx
+│  │     ├─ alert-dialog.tsx
+│  │     ├─ alert.tsx
+│  │     ├─ aspect-ratio.tsx
+│  │     ├─ avatar.tsx
+│  │     ├─ badge.tsx
+│  │     ├─ breadcrumb.tsx
+│  │     ├─ button.tsx
+│  │     ├─ calendar.tsx
+│  │     ├─ card.tsx
+│  │     ├─ carousel.tsx
+│  │     ├─ chart.tsx
+│  │     ├─ checkbox.tsx
+│  │     ├─ collapsible.tsx
+│  │     ├─ command.tsx
+│  │     ├─ context-menu.tsx
+│  │     ├─ dialog.tsx
+│  │     ├─ drawer.tsx
+│  │     ├─ dropdown-menu.tsx
+│  │     ├─ form.tsx
+│  │     ├─ hover-card.tsx
+│  │     ├─ input-otp.tsx
+│  │     ├─ input.tsx
+│  │     ├─ label.tsx
+│  │     ├─ menubar.tsx
+│  │     ├─ navigation-menu.tsx
+│  │     ├─ pagination.tsx
+│  │     ├─ popover.tsx
+│  │     ├─ progress.tsx
+│  │     ├─ radio-group.tsx
+│  │     ├─ resizable.tsx
+│  │     ├─ scroll-area.tsx
+│  │     ├─ select.tsx
+│  │     ├─ separator.tsx
+│  │     ├─ sheet.tsx
+│  │     ├─ skeleton.tsx
+│  │     ├─ slider.tsx
+│  │     ├─ sonner.tsx
+│  │     ├─ switch.tsx
+│  │     ├─ table.tsx
+│  │     ├─ tabs.tsx
+│  │     ├─ textarea.tsx
+│  │     ├─ toggle-group.tsx
+│  │     ├─ toggle.tsx
+│  │     └─ tooltip.tsx
+│  ├─ lib
+│  │  ├─ supabase.ts
+│  │  ├─ user.ts
+│  │  └─ utils.ts
+│  └─ middleware.ts
+├─ supabase
+│  └─ migrations
+│     └─ 001_example_tables_with_rls.sql
+├─ SUPABASE_CLERK_SETUP.md
+└─ tsconfig.json
+
+```
