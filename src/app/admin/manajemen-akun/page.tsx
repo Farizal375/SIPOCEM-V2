@@ -1,19 +1,25 @@
-import { supabase } from "@/lib/supabase";
+import { getAllUsers } from "@/app/actions/admin-actions";
 import { Badge } from "@/components/ui/badge";
 import { UserDialog } from "@/components/admin/user-dialog";
 import { DeleteUserButton } from "@/components/admin/delete-user-button";
 
 export const revalidate = 0;
 
-export default async function ManajemenAkunPage() {
-  const { data: accounts, error } = await supabase
-    .from("profiles")
-    .select("*")
-    .order("created_at", { ascending: false });
+// ✅ 1. Update Type Account: Tambahkan email
+type Account = {
+  id: string;
+  nik: string;
+  nama_lengkap: string;
+  username: string;
+  email: string; // <-- Tambahan baru
+  no_telepon: string;
+  role: string;
+  status: string;
+  created_at: string;
+};
 
-  if (error) {
-    console.error("Supabase Fetch Error:", error.message); // Log specific error message
-  }
+export default async function ManajemenAkunPage() {
+  const accounts = await getAllUsers();
 
   return (
     <div className="space-y-6">
@@ -21,8 +27,8 @@ export default async function ManajemenAkunPage() {
 
       <div className="bg-white rounded-lg shadow-sm border p-6">
         <div className="flex justify-between items-center mb-6">
-            <h2 className="text-gray-600 font-medium text-lg">Daftar Akun</h2>
-            <UserDialog mode="create" />
+          <h2 className="text-gray-600 font-medium text-lg">Daftar Akun</h2>
+          <UserDialog mode="create" />
         </div>
 
         <div className="overflow-x-auto rounded-t-lg">
@@ -33,42 +39,58 @@ export default async function ManajemenAkunPage() {
                 <th className="px-4 py-3">NIK</th>
                 <th className="px-4 py-3">Nama</th>
                 <th className="px-4 py-3">Username</th>
+                {/* ✅ 2. Tambahkan Header Email */}
+                <th className="px-4 py-3">Email</th>
                 <th className="px-4 py-3">No HP</th>
                 <th className="px-4 py-3">Role</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3 text-center">Aksi</th>
               </tr>
             </thead>
+
             <tbody className="divide-y divide-gray-100">
-              {accounts?.map((account, index) => (
-                <tr key={account.id} className="hover:bg-gray-50 transition-colors">
+              {accounts?.map((account: Account, index: number) => (
+                <tr key={account.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 text-center">{index + 1}</td>
-                  <td className="px-4 py-3">{account.nik || "-"}</td>
-                  <td className="px-4 py-3 font-medium capitalize">{account.nama_lengkap}</td>
-                  <td className="px-4 py-3 text-gray-600">{account.username || "-"}</td>
-                  <td className="px-4 py-3">{account.no_telepon || "-"}</td>
-                  <td className="px-4 py-3">
-                    {account.role || 'User'}
+                  <td className="px-4 py-3">{account.nik}</td>
+                  <td className="px-4 py-3 font-medium capitalize">
+                    {account.nama_lengkap}
                   </td>
+                  <td className="px-4 py-3">{account.username}</td>
+                  {/* ✅ 3. Tampilkan Data Email */}
+                  <td className="px-4 py-3 text-gray-600">{account.email}</td>
+                  <td className="px-4 py-3">{account.no_telepon}</td>
+                  <td className="px-4 py-3">{account.role}</td>
                   <td className="px-4 py-3">
-                    <Badge variant="outline" className={
-                        account.status === 'Nonaktif' ? "text-red-600 bg-red-50 border-red-200" : "text-green-600 bg-green-50 border-green-200"
-                    }>
-                        {account.status || 'Aktif'}
+                    <Badge
+                      variant="outline"
+                      className={
+                        account.status === "Nonaktif"
+                          ? "text-red-600 bg-red-50 border-red-200"
+                          : "text-green-600 bg-green-50 border-green-200"
+                      }
+                    >
+                      {account.status}
                     </Badge>
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-center gap-2">
-                        <UserDialog mode="edit" user={account} />
-                        <DeleteUserButton userId={account.id} userName={account.nama_lengkap} />
+                      <UserDialog mode="edit" user={account} />
+                      <DeleteUserButton
+                        userId={account.id}
+                        userName={account.nama_lengkap}
+                      />
                     </div>
                   </td>
                 </tr>
               ))}
+
               {(!accounts || accounts.length === 0) && (
-                  <tr>
-                      <td colSpan={8} className="text-center py-10 text-gray-500">Belum ada data akun.</td>
-                  </tr>
+                <tr>
+                  <td colSpan={9} className="text-center py-10 text-gray-500">
+                    Belum ada data akun.
+                  </td>
+                </tr>
               )}
             </tbody>
           </table>

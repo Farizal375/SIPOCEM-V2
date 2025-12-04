@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -8,7 +8,6 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-  DialogClose
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,9 +18,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { createAccountAction, updateAccountAction } from "@/app/actions/admin-actions";
+import { createFullUser, updateUserProfile } from "@/app/actions/admin-actions";
 import { toast } from "sonner";
-import { Plus, Pencil, X, Loader2 } from "lucide-react";
+import { Plus, Pencil, Loader2 } from "lucide-react";
 
 interface UserDialogProps {
   mode: "create" | "edit";
@@ -32,32 +31,31 @@ export function UserDialog({ mode, user }: UserDialogProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Reset form saat modal dibuka/tutup
-  useEffect(() => {
-    // Logic reset state tambahan jika diperlukan
-  }, [open]);
-
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setLoading(true);
-    
+
     const formData = new FormData(event.currentTarget);
     
+    // Tambahkan ID jika mode edit
     if (mode === "edit" && user) {
-        formData.append("id", user.id);
+      formData.append("id", user.id);
     }
 
-    const result = mode === "create" 
-        ? await createAccountAction(formData) 
-        : await updateAccountAction(formData);
+    let result;
+    if (mode === "create") {
+      result = await createFullUser(formData);
+    } else {
+      result = await updateUserProfile(formData);
+    }
 
     setLoading(false);
 
-    if (result.error) {
-      toast.error("Gagal", { description: result.error });
-    } else {
-      toast.success("Berhasil", { description: `Data berhasil ${mode === "create" ? "disimpan" : "diperbarui"}` });
+    if (result.success) {
+      toast.success(result.message);
       setOpen(false);
+    } else {
+      toast.error(result.message);
     }
   }
 
@@ -65,115 +63,136 @@ export function UserDialog({ mode, user }: UserDialogProps) {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         {mode === "create" ? (
-          <Button className="bg-[#e4d80e] hover:bg-[#cfc20a] text-black font-semibold shadow-sm">
-            <Plus className="w-4 h-4 mr-2" /> Tambah Akun
+          <Button className="bg-[#1abc9c] hover:bg-[#16a085]">
+            <Plus className="w-4 h-4 mr-2" />
+            Tambah Akun
           </Button>
         ) : (
-          <Button variant="outline" size="icon" className="h-8 w-8 text-blue-500 border-blue-200 bg-blue-50 hover:bg-blue-100">
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600">
             <Pencil className="w-4 h-4" />
           </Button>
         )}
       </DialogTrigger>
-      
-      {/* Container Modal tanpa tombol close bawaan */}
-      <DialogContent className="sm:max-w-3xl p-0 overflow-hidden gap-0 [&>button]:hidden">
-        
-        {/* HEADER HIJAU */}
-        <div className="bg-[#1abc9c] p-4 flex items-center justify-between">
-            <DialogTitle className="text-white text-lg font-semibold">
-                {mode === "create" ? "Tambah Akun" : "Edit Akun"}
-            </DialogTitle>
-            
-            <DialogClose className="text-white hover:bg-white/20 rounded-full p-1 transition focus:outline-none">
-                <X className="w-5 h-5" />
-            </DialogClose>
-        </div>
-        
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            
-            {/* --- KOLOM KIRI (NIK, Username, Email, Peran) --- */}
-            <div className="space-y-4">
-                <div className="space-y-2">
-                    <Label className="font-semibold text-gray-700">NIK</Label>
-                    <Input name="nik" defaultValue={user?.nik} className="h-11 border-gray-300" />
-                </div>
-                <div className="space-y-2">
-                    <Label className="font-semibold text-gray-700">Username</Label>
-                    <Input name="username" defaultValue={user?.username} className="h-11 border-gray-300" required />
-                </div>
-                {/* FIELD EMAIL (BARU DITAMBAHKAN) */}
-                <div className="space-y-2">
-                    <Label className="font-semibold text-gray-700">Email</Label>
-                    <Input 
-                        name="email" 
-                        type="email"
-                        defaultValue={user?.email} 
-                        className="h-11 border-gray-300 disabled:bg-gray-100" 
-                        required 
-                        disabled={mode === 'edit'} // Email biasanya tidak boleh diedit sembarangan
-                    />
-                </div>
-                <div className="space-y-2">
-                    <Label className="font-semibold text-gray-700">Peran</Label>
-                    <Select name="role" defaultValue={user?.role || "user"}>
-                        <SelectTrigger className="h-11 border-gray-300">
-                            <SelectValue placeholder="Pilih Peran" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="user">User</SelectItem>
-                            <SelectItem value="kader">Kader</SelectItem>
-                            <SelectItem value="admin">Admin</SelectItem>
-                        </SelectContent>
-                    </Select>
-                </div>
-            </div>
+      <DialogContent className="sm:max-w-[425px] max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>
+            {mode === "create" ? "Tambah Akun Baru" : "Edit Data Akun"}
+          </DialogTitle>
+        </DialogHeader>
 
-            {/* --- KOLOM KANAN (Nama, HP, Password, Status) --- */}
-            <div className="space-y-4">
-                <div className="space-y-2">
-                    <Label className="font-semibold text-gray-700">Nama Lengkap</Label>
-                    <Input name="nama" defaultValue={user?.nama_lengkap} className="h-11 border-gray-300" required />
-                </div>
-                <div className="space-y-2">
-                    <Label className="font-semibold text-gray-700">No.Hp</Label>
-                    <Input name="no_hp" defaultValue={user?.no_telepon} className="h-11 border-gray-300" />
-                </div>
-                {/* PASSWORD PINDAH KE KANAN SESUAI GAMBAR */}
-                <div className="space-y-2">
-                    <Label className="font-semibold text-gray-700">Password {mode === 'edit' && '(Opsional)'}</Label>
-                    <Input 
-                        name="password" 
-                        type="password" 
-                        className="h-11 border-gray-300" 
-                        required={mode === 'create'}
-                        minLength={8}
-                    />
-                </div>
-                <div className="space-y-2">
-                    <Label className="font-semibold text-gray-700">Status</Label>
-                    <Select name="status" defaultValue={user?.status || "Aktif"}>
-                        <SelectTrigger className="h-11 border-gray-300">
-                            <SelectValue placeholder="Pilih Status" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="Aktif">Aktif</SelectItem>
-                            <SelectItem value="Nonaktif">Nonaktif</SelectItem>
-                        </SelectContent>
-                    </Select>
-                </div>
-            </div>
-
+        <form onSubmit={onSubmit} className="grid gap-4 py-4">
+          {/* NIK */}
+          <div className="grid gap-2">
+            <Label htmlFor="nik">NIK</Label>
+            <Input
+              id="nik"
+              name="nik"
+              defaultValue={user?.nik}
+              required
+              placeholder="16 digit NIK"
+            />
           </div>
 
-          {/* FOOTER BUTTONS */}
-          <div className="flex justify-end gap-3 mt-4 pt-4">
-             <Button type="button" variant="outline" onClick={() => setOpen(false)} className="bg-[#17a2b8] text-white hover:bg-[#138496] border-none px-6 h-10">
-                Batal
-             </Button>
-             <Button type="submit" disabled={loading} className="bg-white text-[#1abc9c] border border-[#1abc9c] hover:bg-gray-50 px-6 h-10">
-                {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Simpan"}
-             </Button>
+          {/* NAMA LENGKAP */}
+          <div className="grid gap-2">
+            <Label htmlFor="nama">Nama Lengkap</Label>
+            <Input
+              id="nama"
+              name="nama"
+              defaultValue={user?.nama_lengkap}
+              required
+            />
+          </div>
+
+          {/* USERNAME (Sekarang Bisa Diedit) */}
+          <div className="grid gap-2">
+            <Label htmlFor="username">Username</Label>
+            <Input 
+              id="username" 
+              name="username" 
+              defaultValue={user?.username}
+              required 
+            />
+          </div>
+
+          {/* EMAIL (Sekarang Bisa Diedit) */}
+          <div className="grid gap-2">
+            <Label htmlFor="email">Email</Label>
+            <Input 
+              id="email" 
+              name="email" 
+              type="email" 
+              defaultValue={user?.email} // Perlu data email dari props user
+              required 
+            />
+          </div>
+
+          {/* PASSWORD */}
+          <div className="grid gap-2">
+            <Label htmlFor="password">
+              Password {mode === "edit" ? "(Opsional)" : ""}
+            </Label>
+            <Input 
+              id="password" 
+              name="password" 
+              type="password" 
+              required={mode === "create"} // Wajib hanya saat create
+              placeholder={mode === "edit" ? "Isi hanya jika ingin ganti password" : ""}
+            />
+          </div>
+
+          {/* NO TELEPON */}
+          <div className="grid gap-2">
+            <Label htmlFor="telepon">No. Telepon</Label>
+            <Input
+              id="telepon"
+              name="telepon"
+              defaultValue={user?.no_telepon}
+            />
+          </div>
+
+          {/* ROLE & STATUS (Dua-duanya muncul) */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="role">Role</Label>
+              <Select name="role" required defaultValue={user?.role || "kader"}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Pilih Role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="kader">Kader</SelectItem>
+                  <SelectItem value="orangtua">Orang Tua</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid gap-2">
+                <Label htmlFor="status">Status</Label>
+                <Select name="status" defaultValue={user?.status || "Aktif"}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Aktif">Aktif</SelectItem>
+                    <SelectItem value="Nonaktif">Nonaktif</SelectItem>
+                  </SelectContent>
+                </Select>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 mt-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setOpen(false)}
+            >
+              Batal
+            </Button>
+            <Button type="submit" disabled={loading} className="bg-[#1abc9c]">
+              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Simpan
+            </Button>
           </div>
         </form>
       </DialogContent>

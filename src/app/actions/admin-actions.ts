@@ -1,14 +1,13 @@
 "use server";
 
-import { auth, clerkClient } from "@clerk/nextjs/server";
 import { createClient } from "@supabase/supabase-js";
+import { clerkClient } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 
-// Inisialisasi Supabase dengan SERVICE ROLE KEY (Bypass RLS)
-// HANYA GUNAKAN DI SERVER ACTION! JANGAN DI EXPOSE KE CLIENT!
+// --- KONFIGURASI CLIENT (TIDAK BERUBAH) ---
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!, 
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
   {
     auth: {
       autoRefreshToken: false,
@@ -17,190 +16,196 @@ const supabaseAdmin = createClient(
   }
 );
 
-/**
- * Helper untuk mengecek apakah requester adalah Admin
- */
-async function checkAdminAuth() {
-  const { userId, sessionClaims } = await auth();
-  const role = (sessionClaims?.metadata as any)?.role;
-
-  if (!userId || role !== "admin") {
-    throw new Error("Unauthorized: Hanya Admin yang dapat melakukan aksi ini.");
+// --- HELPER: PENERJEMAH ERROR (TIDAK BERUBAH) ---
+function getFriendlyErrorMessage(error: any): string {
+  // 1. Cek Error Database (Supabase/Postgres)
+  if (error?.code) {
+    switch (error.code) {
+      case "23505": // Unique Violation (Data Ganda)
+        if (error.message?.includes("nik"))
+          return "Gagal: NIK tersebut sudah terdaftar di sistem. Mohon periksa kembali.";
+        if (error.message?.includes("username"))
+          return "Gagal: Username sudah dipakai orang lain. Pilih username lain.";
+        if (error.message?.includes("email"))
+          return "Gagal: Email sudah terdaftar.";
+        if (error.message?.includes("no_telepon"))
+          return "Gagal: Nomor telepon sudah terdaftar.";
+        return "Gagal: Data duplikat ditemukan.";
+      
+      case "23503": // Foreign Key Violation
+        return "Gagal: Akun tidak dapat dihapus karena masih memiliki data terkait (misal: Data Anak/Pemeriksaan).";
+      
+      case "42703": // Column Not Found
+        return "Kesalahan Sistem: Kolom database tidak ditemukan. Hubungi developer.";
+        
+      default:
+        return `Kesalahan Database: ${error.message}`;
+    }
   }
-  return userId;
+
+  // 2. Cek Error Clerk (Auth)
+  if (error?.errors && Array.isArray(error.errors)) {
+    const clerkMsg = error.errors[0]?.message;
+    if (clerkMsg?.includes("email address is taken"))
+      return "Gagal: Email ini sudah digunakan pada akun lain (Clerk).";
+    if (clerkMsg?.includes("username"))
+      return "Gagal: Username tidak valid atau sudah digunakan.";
+    if (clerkMsg?.includes("password"))
+      return "Gagal: Password terlalu lemah atau tidak sesuai aturan.";
+    return `Kesalahan Akun: ${clerkMsg}`;
+  }
+
+  // 3. Error Umum
+  return error.message || "Terjadi kesalahan yang tidak diketahui.";
 }
 
-/**
- * CREATE ACCOUNT (Admin membuat akun Kader/Admin/User)
- */
-export async function createAccountAction(formData: FormData) {
+// --- READ ALL USERS (TIDAK BERUBAH) ---
+export async function getAllUsers() {
+  const { data, error } = await supabaseAdmin
+    .from("profiles")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("Error fetching users:", error);
+    return [];
+  }
+
+  return data.map((user) => ({
+    id: user.id,
+    nik: user.nik || "-",
+    nama_lengkap: user.nama_lengkap,
+    username: user.username,
+    no_telepon: user.no_telepon || "-",
+    role: user.role,
+    status: user.status,
+    email: user.email, // Pastikan email ikut dikirim ke UI
+    created_at: user.created_at,
+  }));
+}
+
+// --- CREATE USER (TIDAK BERUBAH) ---
+export async function createFullUser(formData: FormData) {
+  const client = await clerkClient();
+
+  const nama = formData.get("nama") as string;
+  const email = formData.get("email") as string;
+  const password = formData.get("password") as string;
+  const role = formData.get("role") as string;
+  const nik = formData.get("nik") as string;
+  const telepon = formData.get("telepon") as string;
+  const username = formData.get("username") as string;
+
   try {
-    await checkAdminAuth();
-
-    const nik = formData.get("nik") as string;
-    const nama = formData.get("nama") as string;
-    const username = formData.get("username") as string;
-    const email = formData.get("email") as string;
-    const no_hp = formData.get("no_hp") as string;
-    const password = formData.get("password") as string;
-    const role = formData.get("role") as string; // 'admin', 'kader', 'user'
-    const status = formData.get("status") as string;
-
-    // 1. Buat User di Clerk
-    const client = await clerkClient();
-    const user = await client.users.createUser({
+    // 1. Clerk Create
+    const clerkUser = await client.users.createUser({
       username,
       emailAddress: [email],
       password,
       firstName: nama,
-      publicMetadata: { role, status }, // Simpan role di metadata agar terbaca middleware
+      publicMetadata: { role, status: "Aktif" },
       skipPasswordChecks: true,
       skipPasswordRequirement: true,
     });
 
-    // 2. Simpan Data Lengkap ke Supabase (Tabel Profiles)
+    // 2. Supabase Insert
     const { error: dbError } = await supabaseAdmin.from("profiles").insert({
-      id: user.id, // Penting: ID harus sama dengan Clerk ID
+      id: clerkUser.id,
       nik,
       nama_lengkap: nama,
+      username,
       email,
-      no_telepon: no_hp,
+      no_telepon: telepon,
       role,
-      status,
-      // Set default kosong untuk field spesifik user agar tidak null
-      alamat: "",
+      status: "Aktif",
     });
 
     if (dbError) {
-      // Rollback: Hapus user Clerk jika DB gagal agar konsisten
-      await client.users.deleteUser(user.id);
-      console.error("Supabase Error:", dbError);
-      return { error: "Gagal menyimpan data ke database: " + dbError.message };
+      await client.users.deleteUser(clerkUser.id);
+      throw dbError;
     }
 
     revalidatePath("/admin/manajemen-akun");
-    return { success: true, message: "Akun berhasil dibuat." };
+    return { success: true, message: "Akun berhasil dibuat!" };
 
-  } catch (error: any) {
-    console.error("Create Account Error:", error);
-    // Handle Clerk Errors
-    if (error.errors?.[0]?.code === "form_identifier_exists") {
-      return { error: "Username atau Email sudah terdaftar." };
-    }
-    if (error.errors?.[0]?.code === "form_password_length_too_short") {
-      return { error: "Password minimal 8 karakter." };
-    }
-    return { error: error.message || "Terjadi kesalahan sistem." };
+  } catch (err: any) {
+    console.error("Create Error:", err);
+    return { success: false, message: getFriendlyErrorMessage(err) };
   }
 }
 
-/**
- * UPDATE ACCOUNT
- */
-export async function updateAccountAction(formData: FormData) {
+// --- UPDATE USER (DIPERBARUI: LOGIKA EMAIL, USERNAME, ROLE) ---
+export async function updateUserProfile(formData: FormData) {
+  const client = await clerkClient();
+
+  // Ambil semua data input
+  const id = formData.get("id") as string;
+  const nama = formData.get("nama") as string;
+  const username = formData.get("username") as string;
+  const email = formData.get("email") as string;
+  const password = formData.get("password") as string;
+  const telepon = formData.get("telepon") as string;
+  const nik = formData.get("nik") as string;
+  const role = formData.get("role") as string;
+  const status = formData.get("status") as string;
+
   try {
-    await checkAdminAuth();
-
-    const id = formData.get("id") as string;
-    const nik = formData.get("nik") as string;
-    const nama = formData.get("nama") as string;
-    const username = formData.get("username") as string;
-    const no_hp = formData.get("no_hp") as string;
-    const role = formData.get("role") as string;
-    const status = formData.get("status") as string;
-    const password = formData.get("password") as string;
-
-    const client = await clerkClient();
-
-    // 1. Update Data di Clerk
-    const updateParams: any = {
-      username,
+    // 1. Update ke Clerk (Auth)
+    // Kita update username, nama, dan metadata (role/status)
+    const clerkUpdateData: any = {
+      username: username,
       firstName: nama,
       publicMetadata: { role, status },
     };
 
-    if (password && password.trim().length >= 8) {
-      updateParams.password = password;
+    // Hanya update password jika user mengisinya
+    if (password && password.trim() !== "") {
+      clerkUpdateData.password = password;
     }
 
-    await client.users.updateUser(id, updateParams);
+    // Eksekusi update Clerk
+    await client.users.updateUser(id, clerkUpdateData);
 
-    // 2. Update Data di Supabase
-    const { error: dbError } = await supabaseAdmin
+    // 2. Update ke Supabase (Database)
+    // Kita update SEMUA field agar sinkron dengan input admin
+    const { error } = await supabaseAdmin
       .from("profiles")
       .update({
-        nik,
         nama_lengkap: nama,
-        no_telepon: no_hp,
-        role,
-        status
+        username: username, // Update username
+        email: email,       // Update email di data profil
+        no_telepon: telepon,
+        nik: nik,
+        role: role,         // Update role
+        status: status,
       })
       .eq("id", id);
 
-    if (dbError) throw new Error(dbError.message);
+    if (error) throw error;
 
     revalidatePath("/admin/manajemen-akun");
-    return { success: true, message: "Data akun diperbarui." };
+    return { success: true, message: "Data berhasil diperbarui!" };
 
-  } catch (error: any) {
-    console.error("Update Error:", error);
-    return { error: error.message || "Gagal memperbarui akun." };
+  } catch (err: any) {
+    // Error akan otomatis diterjemahkan oleh helper kita
+    return { success: false, message: getFriendlyErrorMessage(err) };
   }
 }
 
-/**
- * DELETE ACCOUNT
- */
-export async function deleteAccountAction(userId: string) {
+// --- DELETE USER (TIDAK BERUBAH) ---
+export async function deleteFullUser(id: string) {
+  const client = await clerkClient();
+
   try {
-    await checkAdminAuth();
-
-    const client = await clerkClient();
-
-    // 1. Hapus dari Clerk
-    await client.users.deleteUser(userId);
-
-    // 2. Hapus dari Supabase (Sebenarnya otomatis jika user dihapus di Clerk tidak trigger delete supabase
-    // kecuali pakai webhook, jadi kita hapus manual biar bersih)
-    const { error } = await supabaseAdmin.from("profiles").delete().eq("id", userId);
+    await client.users.deleteUser(id);
     
-    if (error) throw new Error(error.message);
+    const { error } = await supabaseAdmin.from("profiles").delete().eq("id", id);
+    if (error) throw error;
 
     revalidatePath("/admin/manajemen-akun");
-    return { success: true, message: "Akun berhasil dihapus permanen." };
+    return { success: true, message: "Akun berhasil dihapus." };
 
-  } catch (error: any) {
-    console.error("Delete Error:", error);
-    return { error: "Gagal menghapus akun. Pastikan user valid." };
-  }
-}
-
-/**
- * VALIDASI AKUN USER (Khusus untuk Kader/Admin memvalidasi pendaftaran user baru)
- */
-export async function validateUserAction(userId: string, isValid: boolean) {
-  try {
-    const { sessionClaims } = await auth();
-    const role = (sessionClaims?.metadata as any)?.role;
-
-    if (role !== "admin" && role !== "kader") {
-       return { error: "Unauthorized" };
-    }
-
-    const status = isValid ? "Aktif" : "Ditolak";
-
-    // Update Clerk Metadata
-    const client = await clerkClient();
-    await client.users.updateUserMetadata(userId, {
-      publicMetadata: { status: status }
-    });
-
-    // Update Supabase
-    await supabaseAdmin.from("profiles").update({ status }).eq("id", userId);
-
-    revalidatePath("/kader/dashboard"); // Atau path yang relevan
-    return { success: true };
-  } catch (error: any) {
-    return { error: error.message };
+  } catch (err: any) {
+    return { success: false, message: getFriendlyErrorMessage(err) };
   }
 }

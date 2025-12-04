@@ -6,11 +6,15 @@ const isAuthRoute = createRouteMatcher(["/sign-in(.*)", "/sign-up(.*)"]);
 const isAdminRoute = createRouteMatcher(["/admin(.*)"]);
 const isKaderRoute = createRouteMatcher(["/kader(.*)"]); // Tambahan untuk Kader
 const isUserRoute = createRouteMatcher(["/user(.*)"]);
+
+// ✅ UPDATE: Tambahkan halaman informasi dan kontak agar bisa diakses tanpa login
 const isPublicRoute = createRouteMatcher([
   "/", 
   "/sign-in(.*)", 
   "/sign-up(.*)",
-  "/api/webhooks(.*)"
+  "/api/webhooks(.*)",
+  "/informasi(.*)",  // <-- Tambahan Baru
+  "/kontak(.*)"      // <-- Tambahan Baru
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
