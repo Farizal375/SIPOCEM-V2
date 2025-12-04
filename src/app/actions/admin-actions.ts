@@ -7,12 +7,13 @@ import { revalidatePath } from "next/cache";
 // Helper: Cek Izin Admin
 async function checkAdmin() {
   const { sessionClaims } = await auth();
-  if ((sessionClaims?.metadata as any)?.role !== "admin") {
+  const role = (sessionClaims?.metadata as any)?.role;
+  if (role !== "admin") {
     throw new Error("Unauthorized: Hanya Admin yang boleh akses.");
   }
 }
 
-// 1. CREATE ACCOUNT (Admin bisa buat akun User/Kader/Admin)
+// 1. CREATE ACCOUNT (Menangani Sinkronisasi Otomatis)
 export async function createAccountAction(formData: FormData) {
   try {
     await checkAdmin();
@@ -30,20 +31,49 @@ export async function createAccountAction(formData: FormData) {
       status: formData.get("status") as string,
     };
 
-    // A. Buat User di Clerk (Auth)
-    const user = await client.users.createUser({
-      username: rawData.username,
-      emailAddress: [rawData.email],
-      password: rawData.password,
-      firstName: rawData.nama,
-      publicMetadata: { role: rawData.role, status: rawData.status },
-      skipPasswordChecks: true,
-      skipPasswordRequirement: true,
-    });
+    let userId = "";
+    let isNewUser = true;
 
-    // B. Simpan Profile di Supabase (DB)
-    const { error: dbError } = await supabase.from("profiles").insert({
-      id: user.id, // ID harus sama!
+    // A. Cek apakah user sudah ada di Clerk (berdasarkan Email atau Username)
+    try {
+      const existingUsers = await client.users.getUserList({
+        emailAddress: [rawData.email],
+        limit: 1,
+      });
+
+      if (existingUsers.data.length > 0) {
+        // User sudah ada di Clerk, kita gunakan ID-nya untuk sinkronisasi ke DB
+        userId = existingUsers.data[0].id;
+        isNewUser = false;
+        
+        // Update metadata user yang sudah ada agar sesuai form baru
+        await client.users.updateUser(userId, {
+          username: rawData.username,
+          firstName: rawData.nama,
+          publicMetadata: { role: rawData.role, status: rawData.status },
+        });
+      } else {
+        // User belum ada, buat baru
+        const user = await client.users.createUser({
+          username: rawData.username,
+          emailAddress: [rawData.email],
+          password: rawData.password,
+          firstName: rawData.nama,
+          publicMetadata: { role: rawData.role, status: rawData.status },
+          skipPasswordChecks: true,
+          skipPasswordRequirement: true,
+        });
+        userId = user.id;
+      }
+    } catch (clerkError: any) {
+      // Tangani error spesifik Clerk (misal username taken tapi email beda)
+      return { error: `Clerk Error: ${clerkError.errors?.[0]?.message || clerkError.message}` };
+    }
+
+    // B. Simpan/Upsert Profile di Supabase (DB)
+    // Menggunakan 'upsert' agar jika ID sudah ada, data diperbarui. Jika belum, dibuat baru.
+    const { error: dbError } = await supabase.from("profiles").upsert({
+      id: userId,
       nik: rawData.nik,
       nama_lengkap: rawData.nama,
       username: rawData.username,
@@ -54,7 +84,10 @@ export async function createAccountAction(formData: FormData) {
     });
 
     if (dbError) {
-      await client.users.deleteUser(user.id); // Rollback Clerk jika DB gagal
+      // Jika user baru dibuat tapi DB gagal, hapus dari Clerk agar bersih (rollback)
+      if (isNewUser) {
+        await client.users.deleteUser(userId);
+      }
       return { error: "DB Error: " + dbError.message };
     }
 
@@ -62,7 +95,7 @@ export async function createAccountAction(formData: FormData) {
     return { success: true };
 
   } catch (error: any) {
-    return { error: error.errors?.[0]?.message || error.message };
+    return { error: error.message };
   }
 }
 
@@ -93,7 +126,13 @@ export async function updateAccountAction(formData: FormData) {
     if (rawData.password && rawData.password.trim() !== "") {
         updateParams.password = rawData.password;
     }
-    await client.users.updateUser(id, updateParams);
+    
+    try {
+      await client.users.updateUser(id, updateParams);
+    } catch (clerkError: any) {
+       console.error("Clerk Update Error (Non-fatal):", clerkError);
+       // Lanjut ke DB update meskipun Clerk gagal update (misal password policy)
+    }
 
     // B. Update Supabase
     const { error } = await supabase.from("profiles").update({
@@ -119,12 +158,19 @@ export async function deleteAccountAction(userId: string) {
   try {
     await checkAdmin();
     const client = await clerkClient();
-    // Delete di Clerk (Supabase akan auto delete jika ada trigger, atau delete manual)
-    await client.users.deleteUser(userId);
-    
-    // Manual delete Supabase (karena RLS on delete cascade biasanya dari parent)
     const supabase = await createSupabaseServerClient();
-    await supabase.from("profiles").delete().eq("id", userId);
+
+    // Hapus di Clerk (Coba dulu)
+    try {
+      await client.users.deleteUser(userId);
+    } catch (e) {
+      console.log("User mungkin sudah terhapus di Clerk, lanjut hapus DB...");
+    }
+    
+    // Hapus di Supabase
+    const { error } = await supabase.from("profiles").delete().eq("id", userId);
+
+    if (error) return { error: error.message };
 
     revalidatePath("/admin/manajemen-akun");
     return { success: true };
