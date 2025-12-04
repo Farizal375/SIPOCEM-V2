@@ -12,10 +12,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Sprout, User, Mail, Lock, Phone, MapPin, Eye, EyeOff } from "lucide-react";
+import { Sprout, User, Mail, Lock, Phone, MapPin, Eye, EyeOff, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@supabase/supabase-js";
 
+// Inisialisasi Supabase Client (untuk insert data publik/awal)
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const supabase = createClient(supabaseUrl, supabaseKey);
@@ -25,7 +26,7 @@ const registerSchema = z.object({
   // STEP 1: Akun & Dasar
   nama_lengkap: z.string().min(1, "Nama wajib diisi"),
   email: z.string().email("Email tidak valid"),
-  password: z.string().min(6, "Password minimal 6 karakter"),
+  password: z.string().min(8, "Password minimal 8 karakter"),
   no_telepon: z.string()
     .regex(/^\d+$/, "Hanya boleh angka")
     .min(10, "Nomor telepon tidak valid (min 10 digit)"),
@@ -132,16 +133,20 @@ export function MultiStepRegister() {
     setLoading(true);
 
     try {
+      // 1. Buat User di Clerk
       const clerkResult = await signUp.create({
         emailAddress: data.email,
         password: data.password,
       });
 
-      if (clerkResult.status === "complete" || clerkResult.status === "missing_requirements") {
+      // 2. Jika pembuatan user berhasil (walaupun status belum complete/verified)
+      if (clerkResult) {
         const userId = clerkResult.createdUserId; 
 
         if (userId) {
-             // 1. Insert Profil Ibu dengan status Menunggu Validasi
+             // A. SIMPAN DATA KE SUPABASE (Walau belum verifikasi, data harus masuk dulu)
+             
+             // Insert Profil Ibu
              const { error: profileError } = await supabase.from('profiles').insert({
                 id: userId,
                 nama_lengkap: data.nama_lengkap,
@@ -159,12 +164,12 @@ export function MultiStepRegister() {
                 tanggal_lahir: data.tanggal_lahir_ibu,
                 asuransi: data.asuransi_ibu,
                 role: 'user',
-                status: 'Menunggu Validasi' 
+                status: 'Menunggu Validasi' // Status awal
              });
 
-             if (profileError) throw new Error("Gagal simpan profil: " + profileError.message);
+             if (profileError) throw new Error("Gagal simpan profil ke database: " + profileError.message);
 
-             // 2. Insert Suami
+             // Insert Suami
              await supabase.from('suami').insert({
                 profile_id: userId,
                 nama_lengkap: data.nama_suami,
@@ -182,7 +187,7 @@ export function MultiStepRegister() {
                 asuransi: data.asuransi_suami
              });
 
-             // 3. Insert Anak
+             // Insert Anak
              const countAnak = parseInt(data.jumlah_anak || "0");
              if (countAnak > 0 && data.data_anak && Array.isArray(data.data_anak) && data.data_anak.length > 0) {
                 const anakToInsert = data.data_anak.slice(0, countAnak).map((anak: any) => ({
@@ -193,14 +198,18 @@ export function MultiStepRegister() {
                     anak_ke: parseInt(anak.anak_ke || "0"),
                     no_jkn: anak.jkn,
                     tempat_lahir: anak.tempat_lahir,
-                    tanggal_lahir: anak.tanggal_lahir ? anak.tanggal_lahir : null
+                    tanggal_lahir: anak.tanggal_lahir ? anak.tanggal_lahir : null,
+                    nama_ibu: data.nama_lengkap 
                 }));
 
                 const { error: anakError } = await supabase.from('anak').insert(anakToInsert);
-                if(anakError) console.error("Gagal simpan anak", anakError);
+                if(anakError) {
+                    console.error("Gagal simpan anak", anakError);
+                    // Tidak throw error agar flow pendaftaran tetap lanjut
+                }
              }
 
-             // 4. Insert Riwayat
+             // Insert Riwayat Kesehatan
              await supabase.from('riwayat_kesehatan_ibu').insert({
                  profile_id: userId,
                  kehamilan_ke: parseInt(data.kehamilan_ke || "1"),
@@ -208,14 +217,23 @@ export function MultiStepRegister() {
                  riwayat_penyakit: data.riwayat_penyakit
              });
 
-            if(clerkResult.createdSessionId){
+            // B. PENANGANAN VERIFIKASI (Redirect jika perlu OTP)
+            if (clerkResult.status === "complete") {
+                // Kasus jarang untuk user baru jika email verification aktif
                 await setActive({ session: clerkResult.createdSessionId });
                 router.push("/user/dashboard");
                 toast.success("Pendaftaran Berhasil!");
-            } else {
+            } else if (clerkResult.status === "missing_requirements") {
+                // Ini yang biasanya terjadi: Butuh Verifikasi Email
                 await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
-                router.push("/sign-up/verify");
-                toast.success("Silakan verifikasi email Anda.");
+                
+                // Redirect ke halaman khusus verifikasi yang sudah Anda buat
+                router.push("/sign-up/verify"); 
+                toast.info("Kode Verifikasi Terkirim", {
+                    description: "Silakan cek email Anda untuk melanjutkan."
+                });
+            } else {
+                console.error("Status pendaftaran tidak dikenal:", clerkResult.status);
             }
         }
       }
@@ -227,6 +245,7 @@ export function MultiStepRegister() {
     }
   };
 
+  // Helper Components
   const InputField = ({ label, id, type = "text", placeholder, registerRef, errorMessage }: any) => (
     <div className="space-y-2">
         <Label htmlFor={id} className="font-semibold text-gray-700">{label}</Label>
@@ -257,7 +276,7 @@ export function MultiStepRegister() {
   );
 
   return (
-    <div className="w-full max-w-2xl border border-gray-400 rounded-lg shadow-sm bg-white overflow-hidden">
+    <div className="w-full max-w-2xl border border-gray-400 rounded-lg shadow-sm bg-white overflow-hidden my-8">
       
       {/* Header */}
       <div className="bg-white p-6 pb-2 text-center">
@@ -286,7 +305,7 @@ export function MultiStepRegister() {
             {/* --- STEP 1: AKUN UTAMA --- */}
             {step === 1 && (
                 <>
-                    <h2 className="text-2xl font-bold text-[#1abc9c] text-center mb-6">Daftar SIPOCEM</h2>
+                    <h2 className="text-2xl font-bold text-[#1abc9c] text-center mb-6">Buat Akun Baru</h2>
                     
                     <div className="space-y-2">
                         <Label className="font-semibold text-gray-700">Nama Lengkap</Label>
@@ -316,16 +335,16 @@ export function MultiStepRegister() {
                                 className="pl-10 pr-10 h-12 border-gray-400" 
                                 placeholder="******" 
                             />
-                            <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">
+                            <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700">
                                 {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                             </button>
                         </div>
-                        <p className="text-xs text-gray-500">Password minimal 6 karakter</p>
+                        <p className="text-xs text-gray-500">Minimal 8 karakter.</p>
                         {errors.password && <p className="text-red-500 text-xs">{errors.password.message}</p>}
                     </div>
 
                     <div className="space-y-2">
-                        <Label className="font-semibold text-gray-700">No. Telepon</Label>
+                        <Label className="font-semibold text-gray-700">No. Telepon (WA)</Label>
                         <div className="relative">
                             <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-5 h-5" />
                             <Input {...register("no_telepon")} className="pl-10 h-12 border-gray-400" placeholder="08123..." />
@@ -334,10 +353,10 @@ export function MultiStepRegister() {
                     </div>
 
                     <div className="space-y-2">
-                        <Label className="font-semibold text-gray-700">Alamat</Label>
+                        <Label className="font-semibold text-gray-700">Alamat Lengkap</Label>
                         <div className="relative">
                             <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-5 h-5" />
-                            <Input {...register("alamat")} className="pl-10 h-12 border-gray-400" placeholder="Alamat lengkap" />
+                            <Input {...register("alamat")} className="pl-10 h-12 border-gray-400" placeholder="Jalan, RT/RW, Desa" />
                         </div>
                         {errors.alamat && <p className="text-red-500 text-xs">{errors.alamat.message}</p>}
                     </div>
@@ -359,13 +378,13 @@ export function MultiStepRegister() {
                     />
 
                     <InputField id="no_jkn_ibu" label="No. JKN (13 Digit)" placeholder="13 digit angka" errorMessage={errors.no_jkn_ibu?.message} />
-                    <InputField id="faskes_ibu" label="Faskes" placeholder="" />
+                    <InputField id="faskes_ibu" label="Faskes (Puskesmas/Klinik)" placeholder="" />
                     <InputField id="pendidikan_ibu" label="Pendidikan Terakhir" placeholder="" />
                     <InputField id="pekerjaan_ibu" label="Pekerjaan" placeholder="" />
                     <InputField id="gol_darah_ibu" label="Gol. Darah" placeholder="" />
                     <InputField id="tempat_lahir_ibu" label="Tempat Lahir" placeholder="" errorMessage={errors.tempat_lahir_ibu?.message} />
                     <InputField id="tanggal_lahir_ibu" label="Tanggal Lahir" type="date" errorMessage={errors.tanggal_lahir_ibu?.message} />
-                    <InputField id="asuransi_ibu" label="Asuransi" placeholder="" />
+                    <InputField id="asuransi_ibu" label="Asuransi Lainnya" placeholder="" />
                     
                     <div className="space-y-2 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
                         <Label className="font-bold text-gray-800">Jumlah Anak Saat Ini</Label>
@@ -386,8 +405,8 @@ export function MultiStepRegister() {
             {step === 3 && (
                 <>
                     <h2 className="text-xl font-bold text-black text-center mb-6">IDENTITAS SUAMI</h2>
-                    <InputField id="nama_suami" label="Nama Lengkap" placeholder="" errorMessage={errors.nama_suami?.message} />
-                    <InputField id="nik_suami" label="NIK (16 Digit)" placeholder="" errorMessage={errors.nik_suami?.message} />
+                    <InputField id="nama_suami" label="Nama Lengkap Suami" placeholder="" errorMessage={errors.nama_suami?.message} />
+                    <InputField id="nik_suami" label="NIK Suami" placeholder="" errorMessage={errors.nik_suami?.message} />
                     
                     <SelectField 
                         label="Jenis Kelamin" 
@@ -397,16 +416,16 @@ export function MultiStepRegister() {
                         options={[{value: "Laki-laki", label: "Laki-laki"}, {value: "Perempuan", label: "Perempuan"}]}
                     />
 
-                    <InputField id="alamat_suami" label="Alamat" placeholder="Kosongkan jika sama dengan Ibu" />
-                    <InputField id="no_jkn_suami" label="No. JKN (13 Digit)" errorMessage={errors.no_jkn_suami?.message} />
-                    <InputField id="faskes_suami" label="Faskes" />
+                    <InputField id="alamat_suami" label="Alamat Suami" placeholder="Kosongkan jika sama dengan Ibu" />
+                    <InputField id="no_jkn_suami" label="No. JKN Suami" errorMessage={errors.no_jkn_suami?.message} />
+                    <InputField id="faskes_suami" label="Faskes Suami" />
                     <InputField id="pendidikan_suami" label="Pendidikan Terakhir" />
                     <InputField id="pekerjaan_suami" label="Pekerjaan" />
                     <InputField id="gol_darah_suami" label="Gol. Darah" />
                     <InputField id="tempat_lahir_suami" label="Tempat Lahir" />
                     <InputField id="tanggal_lahir_suami" label="Tanggal Lahir" type="date" />
-                    <InputField id="asuransi_suami" label="Asuransi" />
-                    <InputField id="no_telepon_suami" label="No. Telepon" />
+                    <InputField id="asuransi_suami" label="Asuransi Suami" />
+                    <InputField id="no_telepon_suami" label="No. HP Suami" />
                 </>
             )}
 
@@ -434,7 +453,7 @@ export function MultiStepRegister() {
                                     />
                                     <InputField 
                                         registerRef={`data_anak.${index}.nik`} 
-                                        label="NIK" 
+                                        label="NIK (Jika ada)" 
                                     />
                                     <InputField 
                                         registerRef={`data_anak.${index}.anak_ke`} 
@@ -457,7 +476,7 @@ export function MultiStepRegister() {
 
                                     <InputField 
                                         registerRef={`data_anak.${index}.jkn`} 
-                                        label="No. JKN" 
+                                        label="No. JKN (Jika ada)" 
                                     />
                                     <div className="grid grid-cols-2 gap-4">
                                         <InputField 
@@ -481,7 +500,7 @@ export function MultiStepRegister() {
             {step === 5 && (
                 <>
                     <h2 className="text-xl font-bold text-black text-center mb-6">DATA KEHAMILAN</h2>
-                    <InputField id="hpht" label="HPHT" type="date" />
+                    <InputField id="hpht" label="HPHT (Hari Pertama Haid Terakhir)" type="date" />
                     <InputField id="taksiran_persalinan" label="Taksiran Persalinan" type="date" />
                 </>
             )}
@@ -490,9 +509,9 @@ export function MultiStepRegister() {
             {step === 6 && (
                 <>
                    <h2 className="text-xl font-bold text-black text-center mb-6">RIWAYAT & KONFIRMASI</h2>
-                   <InputField id="kehamilan_ke" label="Kehamilan Ke" />
-                   <InputField id="riwayat_keguguran" label="Riwayat Keguguran" />
-                   <InputField id="riwayat_penyakit" label="Riwayat Penyakit" />
+                   <InputField id="kehamilan_ke" label="Hamil Ke Berapa?" placeholder="1" />
+                   <InputField id="riwayat_keguguran" label="Riwayat Keguguran (Kali)" placeholder="0" />
+                   <InputField id="riwayat_penyakit" label="Riwayat Penyakit Ibu" placeholder="-" />
                    
                    <div className="flex items-center space-x-2 mt-6 pt-4 border-t">
                         <Checkbox id="terms" onCheckedChange={(val) => {
@@ -500,7 +519,7 @@ export function MultiStepRegister() {
                             register("terms").onChange(event);
                         }} {...register("terms")} />
                         <label htmlFor="terms" className="text-sm font-medium text-[#1abc9c]">
-                            Saya menyetujui <a href="#" className="underline">Syarat & Ketentuan</a>
+                            Saya menyetujui <a href="#" className="underline">Syarat & Ketentuan</a> Pendaftaran Posyandu Cempaka.
                         </label>
                     </div>
                 </>
@@ -522,7 +541,7 @@ export function MultiStepRegister() {
                 </Button>
             ) : (
                 <Button type="submit" disabled={loading} className="bg-[#1abc9c] hover:bg-[#16a085] text-white px-10 rounded-md h-11 font-bold shadow-md">
-                    {loading ? "Memproses..." : "Daftar"}
+                    {loading ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : "Daftar Sekarang"}
                 </Button>
             )}
         </div>

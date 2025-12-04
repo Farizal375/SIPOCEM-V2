@@ -9,7 +9,8 @@ import { X, Plus, Pencil, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { createPemeriksaanAnakAction } from "@/app/actions/kader-actions";
 
-export function PemeriksaanAnakDialog({ mode, data }: { mode: "create"|"edit", data?: any }) {
+// [UPDATE] Menambahkan prop anakId
+export function PemeriksaanAnakDialog({ mode, data, anakId }: { mode: "create"|"edit", data?: any, anakId?: string }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -18,6 +19,9 @@ export function PemeriksaanAnakDialog({ mode, data }: { mode: "create"|"edit", d
     setLoading(true);
     const formData = new FormData(e.currentTarget);
     
+    // [UPDATE] Pastikan ID Anak terkirim
+    if (anakId) formData.append("anak_id", anakId);
+
     const result = await createPemeriksaanAnakAction(formData);
     setLoading(false);
 
@@ -49,13 +53,17 @@ export function PemeriksaanAnakDialog({ mode, data }: { mode: "create"|"edit", d
         </div>
         
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          {/* [UPDATE] Hidden Input untuk ID */}
+          {anakId && <input type="hidden" name="anak_id" value={anakId} />}
+          {mode === "edit" && data?.id && <input type="hidden" name="id" value={data.id} />}
+
           <div className="grid md:grid-cols-3 gap-5">
-             <div className="space-y-2"><Label>Tanggal</Label><Input name="tanggal" type="date" required className="h-10" /></div>
-             <div className="space-y-2"><Label>Usia (Bulan)</Label><Input name="usia" type="number" className="h-10" /></div>
-             <div className="space-y-2"><Label>Berat Badan (Kg)</Label><Input name="bb" type="number" step="0.1" className="h-10" /></div>
-             <div className="space-y-2"><Label>Panjang/Tinggi (cm)</Label><Input name="tb" type="number" step="0.1" className="h-10" /></div>
-             <div className="space-y-2"><Label>Lingkar Kepala</Label><Input name="lk" type="number" step="0.1" className="h-10" /></div>
-             <div className="space-y-2"><Label>LiLA</Label><Input name="lila" type="number" step="0.1" className="h-10" /></div>
+             <div className="space-y-2"><Label>Tanggal</Label><Input name="tanggal" type="date" required className="h-10" defaultValue={data?.tanggal_periksa} /></div>
+             <div className="space-y-2"><Label>Usia (Bulan)</Label><Input name="usia" type="number" className="h-10" defaultValue={data?.usia_bulan} /></div>
+             <div className="space-y-2"><Label>Berat Badan (Kg)</Label><Input name="bb" type="number" step="0.1" className="h-10" defaultValue={data?.bb} /></div>
+             <div className="space-y-2"><Label>Panjang/Tinggi (cm)</Label><Input name="tb" type="number" step="0.1" className="h-10" defaultValue={data?.tb} /></div>
+             <div className="space-y-2"><Label>Lingkar Kepala</Label><Input name="lk" type="number" step="0.1" className="h-10" defaultValue={data?.lk} /></div>
+             <div className="space-y-2"><Label>LiLA</Label><Input name="lila" type="number" step="0.1" className="h-10" defaultValue={data?.lila} /></div>
           </div>
 
           <div className="flex justify-end gap-3 pt-2 border-t">
