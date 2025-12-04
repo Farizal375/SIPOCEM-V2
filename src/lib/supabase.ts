@@ -1,41 +1,30 @@
 import { createClient } from "@supabase/supabase-js";
 import { auth } from "@clerk/nextjs/server";
 
-// Pastikan variabel environment tersedia di .env.local
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+// Client untuk penggunaan di Client Component (tanpa auth otomatis)
+export const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error("Missing Supabase URL or Anon Key");
-}
-
-/**
- * Client Supabase untuk Server Actions (Authenticated).
- * Menggunakan token dari Clerk untuk mengakses data yang diproteksi RLS.
- */
+// Client untuk penggunaan di Server Component & Server Actions
 export async function createSupabaseServerClient() {
+  // Ambil token sesi dari Clerk
   const { getToken } = await auth();
   
-  // Mengambil token JWT dari Clerk menggunakan template bernama "supabase"
-  // (Sesuai dengan konfigurasi di Dashboard Clerk Anda)
+  // Pastikan Anda sudah membuat template JWT bernama 'supabase' di dashboard Clerk
   const token = await getToken({ template: "supabase" });
 
-  const headers: HeadersInit = {};
-  
-  // Hanya tambahkan header Authorization jika token berhasil didapatkan
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
-  }
-
-  return createClient(supabaseUrl, supabaseAnonKey, {
-    global: {
-      headers,
-    },
-  });
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      global: {
+        headers: {
+          // Suntikkan token Bearer ke header Authorization
+          Authorization: `Bearer ${token}`,
+        },
+      },
+    }
+  );
 }
-
-/**
- * Client Supabase Biasa (Unauthenticated).
- * Gunakan ini hanya untuk data publik atau login client-side manual (jarang dipakai di pola ini).
- */
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);

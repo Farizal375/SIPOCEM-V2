@@ -1,4 +1,4 @@
-import { createSupabaseServerClient } from "@/lib/supabase"; // <--- GANTI IMPORT
+import { supabase } from "@/lib/supabase";
 import { Badge } from "@/components/ui/badge";
 import { UserDialog } from "@/components/admin/user-dialog";
 import { DeleteUserButton } from "@/components/admin/delete-user-button";
@@ -6,15 +6,14 @@ import { DeleteUserButton } from "@/components/admin/delete-user-button";
 export const revalidate = 0;
 
 export default async function ManajemenAkunPage() {
-  // 1. Gunakan Client Server agar request dianggap sebagai Admin/User Login
-  const supabase = await createSupabaseServerClient(); 
-
   const { data: accounts, error } = await supabase
     .from("profiles")
     .select("*")
     .order("created_at", { ascending: false });
 
-  if (error) console.error("Error:", error);
+  if (error) {
+    console.error("Supabase Fetch Error:", error.message); // Log specific error message
+  }
 
   return (
     <div className="space-y-6">
