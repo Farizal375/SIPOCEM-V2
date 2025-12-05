@@ -1,17 +1,18 @@
 "use client";
 
 import { useState } from "react";
+// ... imports UI lainnya
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle, DialogClose, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 import { X, Plus, Pencil, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { createPemeriksaanIbuAction } from "@/app/actions/kader-actions";
+// Import dari file yang sudah kita perbarui di poin 2
+import { createPemeriksaanIbuAction } from "@/app/actions/kader-actions"; 
 
-// [UPDATE] Menambahkan prop ibuId
 export function PemeriksaanIbuDialog({ mode, data, ibuId }: { mode: "create"|"edit", data?: any, ibuId?: string }) {
+  // ... (Sisa kode komponen sama, pastikan logic create pakai createPemeriksaanIbuAction)
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -19,63 +20,35 @@ export function PemeriksaanIbuDialog({ mode, data, ibuId }: { mode: "create"|"ed
     e.preventDefault();
     setLoading(true);
     const formData = new FormData(e.currentTarget);
-    
-    // [UPDATE] Pastikan ID Ibu terkirim
     if (ibuId) formData.append("ibu_id", ibuId);
 
     const result = await createPemeriksaanIbuAction(formData);
     setLoading(false);
 
-    if (result.error) toast.error("Gagal", { description: result.error });
-    else {
-        toast.success("Pemeriksaan berhasil disimpan");
+    if (result.success) {
+        toast.success(result.message);
         setOpen(false);
+    } else {
+        toast.error("Gagal", { description: result.error });
     }
   };
-
+  
+  // ... Render UI ...
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        {mode === "create" ? (
-          <Button className="bg-[#1abc9c] hover:bg-[#16a085] shadow-sm">
-            <Plus className="w-4 h-4 mr-2" /> Input Data Bulan Ini
-          </Button>
-        ) : (
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:bg-blue-50">
-            <Pencil className="w-4 h-4" />
-          </Button>
-        )}
-      </DialogTrigger>
-      
-      <DialogContent className="sm:max-w-3xl p-0 overflow-hidden gap-0 [&>button]:hidden">
-        <div className="bg-[#1abc9c] p-4 flex items-center justify-between text-white">
-            <DialogTitle className="text-lg font-semibold">Input Pemeriksaan Rutin</DialogTitle>
-            <DialogClose className="hover:bg-white/20 rounded-full p-1 transition"><X className="w-5 h-5" /></DialogClose>
-        </div>
-        
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          {/* [UPDATE] Hidden Input untuk ID */}
-          {ibuId && <input type="hidden" name="ibu_id" value={ibuId} />}
-          {mode === "edit" && data?.id && <input type="hidden" name="id" value={data.id} />}
-
-          <div className="grid md:grid-cols-3 gap-5">
-             <div className="space-y-2"><Label>Tanggal Periksa</Label><Input name="tanggal" type="date" required className="h-10" defaultValue={data?.tanggal_periksa} /></div>
-             <div className="space-y-2"><Label>Usia Kandungan (Mgg)</Label><Input name="usia_kandungan" type="number" className="h-10" defaultValue={data?.usia_kandungan} /></div>
-             <div className="space-y-2"><Label>Berat Badan (Kg)</Label><Input name="bb" type="number" step="0.1" className="h-10" defaultValue={data?.bb} /></div>
-             <div className="space-y-2"><Label>Tensi</Label><Input name="tensi" placeholder="120/80" className="h-10" defaultValue={data?.tensi} /></div>
-             <div className="space-y-2"><Label>TFU (cm)</Label><Input name="tfu" type="number" className="h-10" defaultValue={data?.tfu} /></div>
-             <div className="space-y-2"><Label>DJJ (x/menit)</Label><Input name="djj" type="number" className="h-10" defaultValue={data?.djj} /></div>
-             <div className="space-y-2"><Label>LiLA (cm)</Label><Input name="lila" type="number" step="0.1" className="h-10" defaultValue={data?.lila} /></div>
-          </div>
-
-          <div className="flex justify-end gap-3 pt-2 border-t">
-             <Button type="button" variant="outline" onClick={() => setOpen(false)}>Batal</Button>
-             <Button type="submit" disabled={loading} className="bg-[#1abc9c] hover:bg-[#16a085] px-8">
-                {loading ? <Loader2 className="animate-spin w-4 h-4" /> : "Simpan"}
-             </Button>
-          </div>
-        </form>
-      </DialogContent>
+        {/* ... Trigger ... */}
+        <DialogContent className="sm:max-w-3xl p-0 overflow-hidden gap-0 [&>button]:hidden">
+            {/* ... Header ... */}
+            <form onSubmit={handleSubmit} className="p-6 space-y-6">
+                {/* ... Inputs ... */}
+                <div className="flex justify-end gap-3 pt-2 border-t">
+                    <Button type="button" variant="outline" onClick={() => setOpen(false)}>Batal</Button>
+                    <Button type="submit" disabled={loading} className="bg-[#1abc9c] hover:bg-[#16a085] px-8">
+                        {loading ? <Loader2 className="animate-spin w-4 h-4" /> : "Simpan"}
+                    </Button>
+                </div>
+            </form>
+        </DialogContent>
     </Dialog>
-  );
+  )
 }

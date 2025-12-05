@@ -3,18 +3,23 @@
 import { clerkClient } from "@clerk/nextjs/server";
 import { createClient } from "@supabase/supabase-js";
 
-// Inisialisasi Supabase dengan SERVICE ROLE KEY (Bypass RLS untuk insert awal)
+// Inisialisasi Supabase Admin (Bypass RLS - Wajib untuk Register awal karena user belum ada di tabel profiles)
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY! // Pastikan variable ini ada di .env.local
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  }
 );
 
-export async function registerUserAction(data: any) {
+export async function registerSimpleUserAction(data: any) {
   try {
     const client = await clerkClient();
 
-    // 1. Update Metadata Clerk (Set Role & Status)
-    // data.userId didapat dari Clerk client-side setelah signUp.create
+    // 1. Update Metadata Clerk (Menandakan role user & status)
     await client.users.updateUser(data.userId, {
       publicMetadata: {
         role: "user",
@@ -23,66 +28,42 @@ export async function registerUserAction(data: any) {
     });
 
     // 2. Insert Data Profil ke Supabase
+    // Pastikan kolom-kolom ini sudah ada di tabel profiles (termasuk username)
     const { error: profileError } = await supabaseAdmin.from('profiles').insert({
-      id: data.userId,
+      id: data.userId,           // ID dari Clerk
       nama_lengkap: data.nama_lengkap,
+      nik: data.nik,
+      username: data.username,   // Pastikan kolom ini sudah ditambahkan di DB
       email: data.email,
-      nik: data.nik_ibu,
-      jenis_kelamin: data.jenis_kelamin_ibu,
-      alamat: data.alamat,
       no_telepon: data.no_telepon,
-      no_jkn: data.no_jkn_ibu,
-      faskes: data.faskes_ibu,
-      pendidikan_terakhir: data.pendidikan_ibu,
-      pekerjaan: data.pekerjaan_ibu,
-      gol_darah: data.gol_darah_ibu,
-      tempat_lahir: data.tempat_lahir_ibu,
-      tanggal_lahir: data.tanggal_lahir_ibu,
-      asuransi: data.asuransi_ibu,
+      alamat: data.alamat,
       role: 'user',
       status: 'Menunggu Validasi'
     });
 
-    if (profileError) throw new Error("DB Profile Error: " + profileError.message);
-
-    // 3. Insert Data Suami
-    if (data.nama_suami) {
-      await supabaseAdmin.from('suami').insert({
-        profile_id: data.userId,
-        nama_lengkap: data.nama_suami,
-        nik: data.nik_suami,
-        jenis_kelamin: "Laki-laki",
-        no_telepon: data.no_telepon_suami,
-        // ... field lainnya
-      });
+    if (profileError) {
+      // Menangani error duplikat data (Unique Violation)
+      if (profileError.code === '23505') {
+        let msg = "Data sudah terdaftar.";
+        if (profileError.message.includes("nik")) msg = "NIK tersebut sudah terdaftar.";
+        if (profileError.message.includes("username")) msg = "Username tersebut sudah dipakai.";
+        if (profileError.message.includes("email")) msg = "Email tersebut sudah terdaftar.";
+        
+        // Jika gagal insert DB, hapus user di Clerk agar tidak nyangkut (Orphan user)
+        await client.users.deleteUser(data.userId);
+        throw new Error(msg);
+      }
+      
+      // Error lainnya
+      console.error("Database Insert Error:", profileError);
+      await client.users.deleteUser(data.userId); // Cleanup Clerk user
+      throw new Error("Gagal menyimpan data profil ke database.");
     }
-
-    // 4. Insert Data Anak (Looping)
-    if (data.data_anak && data.data_anak.length > 0) {
-       const anakData = data.data_anak.map((anak: any) => ({
-          profile_id: data.userId,
-          nama_lengkap: anak.nama,
-          nik: anak.nik,
-          jenis_kelamin: anak.jenis_kelamin,
-          tanggal_lahir: anak.tanggal_lahir,
-          nama_ibu: data.nama_lengkap,
-          // ... field lainnya
-       }));
-       await supabaseAdmin.from('anak').insert(anakData);
-    }
-
-    // 5. Insert Riwayat Kesehatan
-    await supabaseAdmin.from('riwayat_kesehatan_ibu').insert({
-        profile_id: data.userId,
-        kehamilan_ke: parseInt(data.kehamilan_ke || "1"),
-        riwayat_keguguran: data.riwayat_keguguran,
-        riwayat_penyakit: data.riwayat_penyakit
-    });
 
     return { success: true };
 
   } catch (error: any) {
-    console.error("Registration Error:", error);
-    return { error: error.message };
+    console.error("Registration Action Error:", error);
+    return { success: false, error: error.message };
   }
 }

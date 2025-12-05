@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 
+// Fungsi Asli (JANGAN DIUBAH isinya agar dashboard lain aman)
 export async function createServerSupabaseClient() {
   const cookieStore = await cookies();
 
@@ -25,3 +26,7 @@ export async function createServerSupabaseClient() {
     }
   );
 }
+
+// --- PERBAIKAN: Export Alias ---
+// Ini menambal error "Module has no exported member createSupabaseServerClient"
+export const createSupabaseServerClient = createServerSupabaseClient;

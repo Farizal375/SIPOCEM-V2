@@ -1,3 +1,4 @@
+// File: src/components/auth/verify-form.jsx
 
 "use client";
 
@@ -9,6 +10,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { Loader2, MailCheck } from "lucide-react";
 import { toast } from "sonner";
+// --- TAMBAHKAN IMPORT INI ---
+import { registerSimpleUserAction } from "@/app/actions/auth-actions";
 
 export function VerifyForm() {
   const { isLoaded, signUp, setActive } = useSignUp();
@@ -29,21 +32,62 @@ export function VerifyForm() {
 
     setLoading(true);
     try {
+      // 1. Coba verifikasi kode ke Clerk
       const completeSignUp = await signUp.attemptEmailAddressVerification({
         code,
       });
 
+      // 2. Cek status verifikasi
       if (completeSignUp.status === "complete") {
+        
+        // --- LOGIKA UNTUK MENYIMPAN KE SUPABASE DIMULAI DI SINI ---
+
+        // 3. Dapatkan User ID asli dari Clerk
+        const userId = completeSignUp.createdUserId;
+        if (!userId) {
+          throw new Error("Gagal mendapatkan User ID dari Clerk setelah verifikasi.");
+        }
+
+        // 4. Ambil kembali data yang disimpan di unsafeMetadata
+        const metadata = signUp.unsafeMetadata || {};
+        const profileData = {
+          userId: userId, // User ID ini akan jadi PRIMARY KEY di Supabase
+          nama_lengkap: signUp.firstName || "",
+          email: signUp.emailAddress || "",
+          username: signUp.username || "",
+          nik: metadata.nik,
+          no_telepon: metadata.no_telepon,
+          alamat: metadata.alamat,
+        };
+
+        // 5. Simpan semua data ke Supabase via Server Action
+        const dbResult = await registerSimpleUserAction(profileData);
+
+        if (!dbResult.success) {
+          // Jika gagal simpan ke DB, tampilkan error dari server action
+          throw new Error(dbResult.error);
+        }
+        
+        // --- LOGIKA SUPABASE SELESAI ---
+
+        // 6. Jika semua berhasil, aktifkan sesi login user
         await setActive({ session: completeSignUp.createdSessionId });
-        toast.success("Verifikasi Berhasil!", { description: "Akun Anda telah aktif." });
-        router.push("/user/dashboard");
+        
+        toast.success("Akun Anda Berhasil Dibuat!", { description: "Anda akan diarahkan ke dashboard." });
+        
+        // 7. Redirect ke Dashboard
+        router.push("/user/dashboard"); // Pastikan route ini benar
+
       } else {
+        // Jika status belum complete (kasus jarang)
         console.error(JSON.stringify(completeSignUp, null, 2));
-        toast.error("Verifikasi Gagal", { description: "Silakan coba lagi." });
+        toast.error("Verifikasi Gagal", { description: "Status akun belum lengkap. Silakan coba lagi." });
       }
     } catch (err: any) {
-      console.error("Error:", err.errors);
-      toast.error("Kode Salah", { description: err.errors?.[0]?.message || "Kode verifikasi tidak valid." });
+      console.error("Verification Error:", err);
+      // Tampilkan pesan error yang paling spesifik, baik dari Clerk atau dari Server Action
+      const msg = err.errors?.[0]?.message || err.message || "Kode verifikasi tidak valid.";
+      toast.error("Verifikasi Gagal", { description: msg });
     } finally {
       setLoading(false);
     }

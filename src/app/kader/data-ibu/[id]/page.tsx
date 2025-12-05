@@ -1,43 +1,44 @@
-"use client";
-
+import { createSupabaseServerClient } from "@/lib/supabase-server";
 import Link from "next/link";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { ArrowLeft, History, Trash2, Edit } from "lucide-react";
-import { toast } from "sonner";
+import { ArrowLeft, History } from "lucide-react";
+import { IbuDialog } from "@/components/kader/ibu-dialog";
+import { PemeriksaanIbuDialog } from "@/components/kader/pemeriksaan-ibu-dialog";
+import { DeleteIbuButton, DeletePemeriksaanButton } from "@/components/kader/delete-ibu-button";
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 
-// Import Dialogs
-import { IbuDialog } from "@/components/kader/ibu-dialog"; // Untuk Edit Profil Utama
-import { PemeriksaanIbuDialog } from "@/components/kader/pemeriksaan-ibu-dialog"; // Untuk CRUD Bulanan
+export const revalidate = 0;
 
-const dummyChartData = [
-  { bulan: 'Bulan 1', bb: 50 },
-  { bulan: 'Bulan 2', bb: 51 },
-  { bulan: 'Bulan 3', bb: 52.5 },
-  { bulan: 'Bulan 4', bb: 54 },
-  { bulan: 'Bulan 5', bb: 56 },
-];
+export default async function DetailIbuPage({ params }: { params: { id: string } }) {
+  const supabase = await createSupabaseServerClient();
+  const { id } = params;
 
-export default function DetailIbuPage({ params }: { params: { id: string } }) {
-  
-  const handleDelete = () => {
-    toast.success("Data berhasil dihapus");
-  };
+  // 1. Ambil Profil Ibu
+  const { data: ibu, error: errIbu } = await supabase
+    .from("profiles")
+    .select("*")
+    .eq("id", id)
+    .single();
+
+  // 2. Ambil Riwayat Pemeriksaan (Urut dari terbaru)
+  const { data: riwayat, error: errRiwayat } = await supabase
+    .from("pemeriksaan_ibu")
+    .select("*")
+    .eq("profile_id", id)
+    .order("tgl_kunjungan", { ascending: false });
+
+  if (errIbu || !ibu) return <div>Data Ibu tidak ditemukan</div>;
+
+  // Format Data untuk Grafik (Berat Badan) - Urutkan Ascending (Terlama ke Terbaru) untuk grafik
+  const chartData = riwayat 
+    ? [...riwayat].reverse().map((item) => ({
+        tanggal: new Date(item.tgl_kunjungan).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' }),
+        bb: item.berat_badan
+      }))
+    : [];
 
   return (
     <div className="space-y-6">
@@ -51,26 +52,20 @@ export default function DetailIbuPage({ params }: { params: { id: string } }) {
         </div>
         <div className="flex gap-2">
             {/* Edit Profil Utama */}
-            <IbuDialog mode="edit" data={{ nama: "Siti Aminah", nik: "3201234567890001" }} />
+            <IbuDialog 
+                mode="edit" 
+                data={{ 
+                    id: ibu.id,
+                    nama: ibu.nama_lengkap, 
+                    nik: ibu.nik, 
+                    tgl_lahir: ibu.tanggal_lahir,
+                    lokasi: ibu.alamat,
+                    telepon: ibu.no_telepon 
+                }} 
+            />
             
             {/* Hapus Profil Utama */}
-            <AlertDialog>
-                <AlertDialogTrigger asChild>
-                    <Button variant="destructive" className="bg-red-50 text-red-600 border border-red-200 hover:bg-red-100">
-                        <Trash2 className="w-4 h-4 mr-2" /> Hapus Data Ibu
-                    </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Hapus Data Ibu Hamil?</AlertDialogTitle>
-                        <AlertDialogDescription>Tindakan ini akan menghapus seluruh data profil dan riwayat pemeriksaan secara permanen.</AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>Batal</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => toast.success("Data Ibu dihapus")}>Hapus</AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
+            <DeleteIbuButton id={ibu.id} nama={ibu.nama_lengkap} variant="with-text" />
         </div>
       </div>
 
@@ -89,7 +84,7 @@ export default function DetailIbuPage({ params }: { params: { id: string } }) {
                 <History className="w-5 h-5" /> Riwayat Pemeriksaan
              </h3>
              {/* Tombol Tambah Data Bulanan */}
-             <PemeriksaanIbuDialog mode="create" />
+             <PemeriksaanIbuDialog mode="create" ibuId={ibu.id} />
           </div>
 
           <div className="grid lg:grid-cols-3 gap-6">
@@ -108,44 +103,41 @@ export default function DetailIbuPage({ params }: { params: { id: string } }) {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            <TableRow>
-                                <TableCell>12/10/2025</TableCell>
-                                <TableCell>20</TableCell>
-                                <TableCell>56.0</TableCell>
-                                <TableCell>110/80</TableCell>
-                                <TableCell>24cm</TableCell>
-                                <TableCell className="text-center">
-                                    <div className="flex justify-center gap-1">
-                                        <PemeriksaanIbuDialog mode="edit" data={{ tanggal: "2025-10-12", usia_kandungan: 20, bb: 56, tensi: "110/80", tfu: 24 }} />
-                                        <AlertDialog>
-                                            <AlertDialogTrigger asChild>
-                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:bg-red-50"><Trash2 className="w-4 h-4" /></Button>
-                                            </AlertDialogTrigger>
-                                            <AlertDialogContent>
-                                                <AlertDialogHeader><AlertDialogTitle>Hapus data pemeriksaan ini?</AlertDialogTitle></AlertDialogHeader>
-                                                <AlertDialogFooter>
-                                                    <AlertDialogCancel>Batal</AlertDialogCancel>
-                                                    <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">Hapus</AlertDialogAction>
-                                                </AlertDialogFooter>
-                                            </AlertDialogContent>
-                                        </AlertDialog>
-                                    </div>
-                                </TableCell>
-                            </TableRow>
-                            {/* Contoh Data Lain */}
-                            <TableRow>
-                                <TableCell>12/09/2025</TableCell>
-                                <TableCell>16</TableCell>
-                                <TableCell>54.5</TableCell>
-                                <TableCell>120/80</TableCell>
-                                <TableCell>18cm</TableCell>
-                                <TableCell className="text-center">
-                                    <div className="flex justify-center gap-1">
-                                        <PemeriksaanIbuDialog mode="edit" data={{ tanggal: "2025-09-12", usia_kandungan: 16, bb: 54.5, tensi: "120/80", tfu: 18 }} />
-                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:bg-red-50"><Trash2 className="w-4 h-4" /></Button>
-                                    </div>
-                                </TableCell>
-                            </TableRow>
+                            {riwayat && riwayat.length > 0 ? (
+                                riwayat.map((item: any) => (
+                                    <TableRow key={item.id}>
+                                        <TableCell>{item.tgl_kunjungan}</TableCell>
+                                        <TableCell>{item.usia_kehamilan}</TableCell>
+                                        <TableCell>{item.berat_badan}</TableCell>
+                                        <TableCell>{item.tekanan_darah}</TableCell>
+                                        <TableCell>{item.tfu} cm</TableCell>
+                                        <TableCell className="text-center">
+                                            <div className="flex justify-center gap-1">
+                                                <PemeriksaanIbuDialog 
+                                                    mode="edit" 
+                                                    ibuId={ibu.id}
+                                                    data={{ 
+                                                        id: item.id,
+                                                        tanggal_periksa: item.tgl_kunjungan, 
+                                                        usia_kandungan: item.usia_kehamilan, 
+                                                        bb: item.berat_badan, 
+                                                        tensi: item.tekanan_darah, 
+                                                        tfu: item.tfu,
+                                                        djj: item.djj,
+                                                        lila: item.lila,
+                                                        catatan: item.catatan_kader
+                                                    }} 
+                                                />
+                                                <DeletePemeriksaanButton id={item.id} ibuId={ibu.id} />
+                                            </div>
+                                        </TableCell>
+                                    </TableRow>
+                                ))
+                            ) : (
+                                <TableRow>
+                                    <TableCell colSpan={6} className="text-center py-6 text-gray-500">Belum ada data pemeriksaan.</TableCell>
+                                </TableRow>
+                            )}
                         </TableBody>
                     </Table>
                 </CardContent>
@@ -157,15 +149,19 @@ export default function DetailIbuPage({ params }: { params: { id: string } }) {
                  <CardTitle className="text-sm">Grafik Berat Badan</CardTitle>
                </CardHeader>
                <CardContent className="h-[300px] p-2">
-                 <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={dummyChartData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="bulan" fontSize={10} tickLine={false} axisLine={false} />
-                      <YAxis fontSize={10} tickLine={false} axisLine={false} domain={['dataMin - 1', 'dataMax + 1']} />
-                      <Tooltip />
-                      <Line type="monotone" dataKey="bb" stroke="#1abc9c" strokeWidth={3} dot={{r:4, fill:"#1abc9c"}} />
-                    </LineChart>
-                 </ResponsiveContainer>
+                 {chartData.length > 0 ? (
+                     <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={chartData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="tanggal" fontSize={10} tickLine={false} axisLine={false} />
+                        <YAxis fontSize={10} tickLine={false} axisLine={false} domain={['dataMin - 1', 'dataMax + 1']} />
+                        <Tooltip />
+                        <Line type="monotone" dataKey="bb" stroke="#1abc9c" strokeWidth={3} dot={{r:4, fill:"#1abc9c"}} />
+                        </LineChart>
+                    </ResponsiveContainer>
+                 ) : (
+                    <div className="h-full flex items-center justify-center text-xs text-gray-400">Data belum cukup</div>
+                 )}
                  <p className="text-center text-xs text-gray-500 mt-4">Tren kenaikan berat badan ibu.</p>
                </CardContent>
              </Card>
@@ -180,16 +176,27 @@ export default function DetailIbuPage({ params }: { params: { id: string } }) {
               <div className="grid md:grid-cols-2 gap-x-12 gap-y-6">
                 <div className="space-y-1 border-b pb-2">
                   <Label className="text-gray-500 text-xs uppercase">NIK</Label>
-                  <p className="font-medium text-lg">3201234567890001</p>
+                  <p className="font-medium text-lg">{ibu.nik || "-"}</p>
                 </div>
                 <div className="space-y-1 border-b pb-2">
                   <Label className="text-gray-500 text-xs uppercase">Nama Lengkap</Label>
-                  <p className="font-medium text-lg">Siti Aminah</p>
+                  <p className="font-medium text-lg">{ibu.nama_lengkap}</p>
                 </div>
-                {/* ... Sisa data profil lainnya ... */}
+                <div className="space-y-1 border-b pb-2">
+                  <Label className="text-gray-500 text-xs uppercase">Tanggal Lahir</Label>
+                  <p className="font-medium text-lg">{ibu.tanggal_lahir || "-"}</p>
+                </div>
+                <div className="space-y-1 border-b pb-2">
+                  <Label className="text-gray-500 text-xs uppercase">Nomor Telepon</Label>
+                  <p className="font-medium text-lg">{ibu.no_telepon || "-"}</p>
+                </div>
                 <div className="space-y-1 border-b pb-2">
                   <Label className="text-gray-500 text-xs uppercase">Alamat</Label>
-                  <p className="font-medium text-lg">Jl. Cempaka No. 12, Mugarsari</p>
+                  <p className="font-medium text-lg">{ibu.alamat || "-"}</p>
+                </div>
+                <div className="space-y-1 border-b pb-2">
+                  <Label className="text-gray-500 text-xs uppercase">Faskes</Label>
+                  <p className="font-medium text-lg">{ibu.faskes || "-"}</p>
                 </div>
               </div>
             </CardContent>

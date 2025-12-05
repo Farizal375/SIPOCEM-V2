@@ -1,12 +1,30 @@
+import { createSupabaseServerClient } from "@/lib/supabase-server";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Search, Eye, Trash2, Edit } from "lucide-react";
+import { Search, Eye } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { IbuDialog } from "@/components/kader/ibu-dialog"; 
+import { IbuDialog } from "@/components/kader/ibu-dialog";
+import { DeleteIbuButton } from "@/components/kader/delete-ibu-button"; // Komponen baru (Lihat poin 5)
 
-export default function DataIbuPage() {
+export const revalidate = 0;
+
+export default async function DataIbuPage() {
+  const supabase = await createSupabaseServerClient();
+
+  // Ambil user dengan role 'user' (Asumsi semua user di sini adalah Ibu/Sasaran)
+  const { data: listIbu, error } = await supabase
+    .from("profiles")
+    .select("*")
+    .eq("role", "user") 
+    .order("created_at", { ascending: false });
+
+  if (error) console.error("Error fetching ibu:", error);
+
+  // Helper hitung usia kehamilan (Bisa diambil dari pemeriksaan terakhir jika ada, atau kosongkan)
+  // Untuk tabel utama, kita tampilkan data statis profil dulu.
+
   return (
     <div className="space-y-6">
       {/* Header Page */}
@@ -26,7 +44,6 @@ export default function DataIbuPage() {
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <Input placeholder="Cari NIK atau Nama Ibu..." className="pl-10 border-gray-200 bg-gray-50 focus-visible:ring-[#1abc9c]" />
                </div>
-               {/* Filter opsional bisa ditaruh disini */}
            </div>
         </CardHeader>
         <CardContent>
@@ -36,56 +53,55 @@ export default function DataIbuPage() {
                 <TableHead className="text-black font-bold">NIK</TableHead>
                 <TableHead className="text-black font-bold">Nama Lengkap</TableHead>
                 <TableHead className="text-black font-bold">Tgl Lahir</TableHead>
-                <TableHead className="text-black font-bold">Usia Kandungan</TableHead>
-                <TableHead className="text-black font-bold">Lokasi</TableHead>
+                <TableHead className="text-black font-bold">Alamat</TableHead>
                 <TableHead className="text-center text-black font-bold">Aksi</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {/* Dummy Data Row 1 */}
-              <TableRow className="hover:bg-gray-50 transition-colors">
-                <TableCell className="font-medium">3201234567890001</TableCell>
-                <TableCell>Siti Aminah</TableCell>
-                <TableCell>12/08/1995</TableCell>
-                <TableCell><span className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-semibold">20 Minggu</span></TableCell>
-                <TableCell>Kp. Melati RT 02</TableCell>
-                <TableCell className="text-center">
-                  <div className="flex justify-center gap-2">
-                    <Button asChild size="icon" variant="outline" className="h-8 w-8 text-blue-500 border-blue-200 bg-blue-50 hover:bg-blue-100" title="Detail Pemeriksaan">
-                        <Link href="/kader/data-ibu/1">
-                           <Eye className="w-4 h-4" />
-                        </Link>
-                    </Button>
-                    <div title="Edit Data Master">
-                        <IbuDialog mode="edit" data={{ nama: "Siti Aminah", nik: "3201234567890001" }} />
-                    </div>
-                    <Button size="icon" variant="outline" className="h-8 w-8 text-red-500 border-red-200 bg-red-50 hover:bg-red-100" title="Hapus">
-                        <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-              {/* Dummy Data Row 2 */}
-              <TableRow className="hover:bg-gray-50 transition-colors">
-                <TableCell className="font-medium">3201234567890005</TableCell>
-                <TableCell>Rina Nose</TableCell>
-                <TableCell>20/01/1998</TableCell>
-                <TableCell><span className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-semibold">12 Minggu</span></TableCell>
-                <TableCell>Kp. Mawar RT 04</TableCell>
-                <TableCell className="text-center">
-                  <div className="flex justify-center gap-2">
-                    <Button asChild size="icon" variant="outline" className="h-8 w-8 text-blue-500 border-blue-200 bg-blue-50 hover:bg-blue-100">
-                        <Link href="/kader/data-ibu/2">
-                           <Eye className="w-4 h-4" />
-                        </Link>
-                    </Button>
-                    <IbuDialog mode="edit" data={{ nama: "Rina Nose", nik: "3201234567890005" }} />
-                    <Button size="icon" variant="outline" className="h-8 w-8 text-red-500 border-red-200 bg-red-50 hover:bg-red-100">
-                        <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
+              {listIbu && listIbu.length > 0 ? (
+                listIbu.map((ibu: any) => (
+                  <TableRow key={ibu.id} className="hover:bg-gray-50 transition-colors">
+                    <TableCell className="font-medium">{ibu.nik || "-"}</TableCell>
+                    <TableCell>{ibu.nama_lengkap}</TableCell>
+                    <TableCell>{ibu.tanggal_lahir || "-"}</TableCell>
+                    <TableCell>{ibu.alamat || "-"}</TableCell>
+                    <TableCell className="text-center">
+                      <div className="flex justify-center gap-2">
+                        {/* Detail */}
+                        <Button asChild size="icon" variant="outline" className="h-8 w-8 text-blue-500 border-blue-200 bg-blue-50 hover:bg-blue-100" title="Detail Pemeriksaan">
+                            <Link href={`/kader/data-ibu/${ibu.id}`}>
+                               <Eye className="w-4 h-4" />
+                            </Link>
+                        </Button>
+                        
+                        {/* Edit Profil */}
+                        <div title="Edit Data Master">
+                            <IbuDialog 
+                                mode="edit" 
+                                data={{ 
+                                    id: ibu.id,
+                                    nama: ibu.nama_lengkap, 
+                                    nik: ibu.nik, 
+                                    tgl_lahir: ibu.tanggal_lahir,
+                                    lokasi: ibu.alamat,
+                                    telepon: ibu.no_telepon 
+                                }} 
+                            />
+                        </div>
+
+                        {/* Hapus Profil */}
+                        <DeleteIbuButton id={ibu.id} nama={ibu.nama_lengkap} />
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                    <TableCell colSpan={5} className="text-center py-8 text-gray-500">
+                        Belum ada data ibu hamil.
+                    </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </CardContent>

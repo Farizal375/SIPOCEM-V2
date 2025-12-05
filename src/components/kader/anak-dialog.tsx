@@ -13,9 +13,10 @@ import { createAnakAction, updateAnakAction } from "@/app/actions/kader-actions"
 interface AnakDialogProps {
   mode: "create" | "edit";
   data?: any;
+  listIbu: any[]; 
 }
 
-export function AnakDialog({ mode, data }: AnakDialogProps) {
+export function AnakDialog({ mode, data, listIbu }: AnakDialogProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -24,7 +25,18 @@ export function AnakDialog({ mode, data }: AnakDialogProps) {
     setLoading(true);
     const formData = new FormData(e.currentTarget);
     
-    if (mode === "edit" && data?.id) formData.append("id", data.id);
+    // Pastikan ID Anak terkirim saat edit
+    if (mode === "edit" && data?.id) {
+        formData.append("id", data.id);
+    }
+
+    // Validasi Sederhana: Cek apakah Ibu dipilih
+    const ibuId = formData.get("ibu_id");
+    if (!ibuId) {
+        toast.error("Wajib memilih Nama Ibu (Orang Tua).");
+        setLoading(false);
+        return;
+    }
 
     const result = mode === "create" 
         ? await createAnakAction(formData) 
@@ -32,11 +44,11 @@ export function AnakDialog({ mode, data }: AnakDialogProps) {
     
     setLoading(false);
 
-    if (result.error) {
-        toast.error("Gagal", { description: result.error });
-    } else {
-        toast.success(mode === "create" ? "Data Anak ditambah" : "Data Anak diupdate");
+    if (result.success) {
+        toast.success(result.message);
         setOpen(false);
+    } else {
+        toast.error("Gagal", { description: result.error });
     }
   };
 
@@ -66,22 +78,13 @@ export function AnakDialog({ mode, data }: AnakDialogProps) {
         
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            
+            {/* KOLOM KIRI (UI Asli) */}
             <div className="space-y-4">
                 <div className="space-y-2">
-                    <Label>NIK</Label>
-                    <Input name="nik" defaultValue={data?.nik} required className="h-11 border-gray-300" />
+                    <Label>NIK Anak</Label>
+                    <Input name="nik" defaultValue={data?.nik} className="h-11 border-gray-300" placeholder="Nomor Induk Kependudukan" />
                 </div>
-                <div className="space-y-2">
-                    <Label>Tanggal Lahir</Label>
-                    <Input name="tgl_lahir" type="date" defaultValue={data?.tgl_lahir} className="h-11 border-gray-300" />
-                </div>
-                <div className="space-y-2">
-                    <Label>Nama Ibu</Label>
-                    <Input name="nama_ibu" defaultValue={data?.nama_ibu} className="h-11 border-gray-300" />
-                </div>
-            </div>
-
-            <div className="space-y-4">
                 <div className="space-y-2">
                     <Label>Nama Lengkap Anak</Label>
                     <Input name="nama" defaultValue={data?.nama} required className="h-11 border-gray-300" />
@@ -96,13 +99,52 @@ export function AnakDialog({ mode, data }: AnakDialogProps) {
                         </SelectContent>
                     </Select>
                 </div>
+                <div className="space-y-2">
+                    <Label>Nama Ayah</Label>
+                    <Input name="nama_ayah" defaultValue={data?.nama_ayah} className="h-11 border-gray-300" />
+                </div>
+            </div>
+
+            {/* KOLOM KANAN (UI Asli) */}
+            <div className="space-y-4">
+                <div className="space-y-2">
+                    <Label className="text-[#1abc9c] font-bold">Pilih Ibu (Orang Tua)</Label>
+                    {/* DROP DOWN PILIH IBU - Mengirimkan value 'ibu_id' ke Action */}
+                    <Select name="ibu_id" defaultValue={data?.ibu_id} required>
+                        <SelectTrigger className="h-11 border-gray-300 bg-yellow-50">
+                            <SelectValue placeholder="-- Cari Nama Ibu --" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-60">
+                            {listIbu && listIbu.length > 0 ? (
+                                listIbu.map((ibu) => (
+                                    <SelectItem key={ibu.id} value={ibu.id}>
+                                        {ibu.nama_lengkap} (NIK: {ibu.nik})
+                                    </SelectItem>
+                                ))
+                            ) : (
+                                <div className="p-2 text-sm text-gray-500 text-center">
+                                    Belum ada data ibu. <br/> Silakan input data ibu terlebih dahulu.
+                                </div>
+                            )}
+                        </SelectContent>
+                    </Select>
+                </div>
+
+                <div className="space-y-2">
+                    <Label>Tempat Lahir</Label>
+                    <Input name="tempat_lahir" defaultValue={data?.tempat_lahir} className="h-11 border-gray-300" />
+                </div>
+                <div className="space-y-2">
+                    <Label>Tanggal Lahir</Label>
+                    <Input name="tgl_lahir" type="date" defaultValue={data?.tgl_lahir} required className="h-11 border-gray-300" />
+                </div>
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 mt-6 pt-2">
+          <div className="flex justify-end gap-3 mt-6 pt-2 border-t">
              <Button type="button" variant="outline" onClick={() => setOpen(false)}>Batal</Button>
              <Button type="submit" disabled={loading} className="bg-[#1abc9c] hover:bg-[#16a085] px-6">
-                {loading ? <Loader2 className="animate-spin w-4 h-4" /> : "Simpan"}
+                {loading ? <Loader2 className="animate-spin w-4 h-4" /> : "Simpan Data"}
              </Button>
           </div>
         </form>

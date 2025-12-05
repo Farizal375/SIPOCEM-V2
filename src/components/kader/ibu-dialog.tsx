@@ -78,15 +78,15 @@ export function IbuDialog({ mode, data }: IbuDialogProps) {
             <div className="space-y-4">
                 <div className="space-y-2">
                     <Label>NIK</Label>
-                    <Input name="nik" defaultValue={data?.nik} required className="h-11 border-gray-300" />
+                    <Input name="nik" defaultValue={data?.nik} required className="h-11 border-gray-300" placeholder="16 Digit NIK" />
                 </div>
                 <div className="space-y-2">
                     <Label>Tanggal Lahir</Label>
                     <Input name="tgl_lahir" type="date" defaultValue={data?.tgl_lahir} className="h-11 border-gray-300" />
                 </div>
                 <div className="space-y-2">
-                    <Label>Jumlah Anak</Label>
-                    <Input name="jml_anak" type="number" defaultValue={data?.jml_anak} className="h-11 border-gray-300" />
+                    <Label>No. Telepon</Label>
+                    <Input name="telepon" type="tel" defaultValue={data?.telepon} className="h-11 border-gray-300" />
                 </div>
             </div>
 
@@ -97,7 +97,7 @@ export function IbuDialog({ mode, data }: IbuDialogProps) {
                 </div>
                 <div className="space-y-2">
                     <Label>Lokasi / Alamat</Label>
-                    <Input name="lokasi" defaultValue={data?.lokasi} className="h-11 border-gray-300" />
+                    <Input name="lokasi" defaultValue={data?.lokasi} className="h-11 border-gray-300" placeholder="Contoh: Kp. Cempaka RT 01" />
                 </div>
             </div>
           </div>
